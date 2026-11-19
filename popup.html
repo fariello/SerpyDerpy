@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SerpyDerpy</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-hover: #0284c7;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0;
+      padding: 16px;
+      width: 440px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -0.01em;
+    }
+    .version-badge {
+      background: #0369a1;
+      color: #e0f2fe;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 9999px;
+      letter-spacing: 0.02em;
+    }
+    .subtitle {
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+    .section-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: 5px;
+      color: var(--text);
+      font-size: 12px;
+    }
+    input[type="text"], select {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 12px;
+      outline: none;
+    }
+    input[type="text"]:focus, select:focus {
+      border-color: var(--accent);
+    }
+    .row-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .checkbox-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .checkbox-item input {
+      margin: 0;
+      cursor: pointer;
+    }
+    .hint {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .button-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      transition: background 0.15s ease, opacity 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+    }
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #082f49;
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+      color: #ffffff;
+    }
+    .btn-secondary {
+      background: #334155;
+      color: var(--text);
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: #475569;
+    }
+    .btn-danger {
+      background: #7f1d1d;
+      color: #fecaca;
+      border: 1px solid #991b1b;
+      margin-top: 8px;
+    }
+    .btn-danger:hover:not(:disabled) {
+      background: #991b1b;
+      color: #ffffff;
+    }
+    .btn-copy {
+      background: #14532d;
+      color: #bbf7d0;
+      border: 1px solid #166534;
+      margin-top: 8px;
+    }
+    .btn-copy:hover:not(:disabled) {
+      background: #166534;
+      color: #ffffff;
+    }
+    .status-area {
+      margin-top: 10px;
+      padding: 10px;
+      border-radius: 6px;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      display: none;
+    }
+    .status-area.visible {
+      display: block;
+    }
+    .status-msg {
+      font-weight: 600;
+      margin-bottom: 4px;
+      word-break: break-word;
+    }
+    .status-msg.success {
+      color: var(--success);
+    }
+    .status-msg.error {
+      color: var(--danger);
+    }
+    .status-msg.warning {
+      color: var(--warning);
+    }
+    .preview-urls {
+      width: 100%;
+      height: 90px;
+      background: #090d16;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: #cbd5e1;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 11px;
+      padding: 6px 8px;
+      margin-top: 8px;
+      resize: vertical;
+      outline: none;
+      white-space: pre;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <h1>SerpyDerpy</h1>
+      <span class="version-badge" id="versionBadge">v1.0.5</span>
+    </div>
+    <span class="subtitle">SERP to Markdown &amp; JSON</span>
+  </div>
+
+  <!-- Settings & Options -->
+  <div class="section" style="padding-bottom: 10px;">
+    <div class="row-grid">
+      <div>
+        <label for="subfolderInput">Subfolder</label>
+        <input type="text" id="subfolderInput" value="SerpyDerpy" placeholder="SerpyDerpy" />
+      </div>
+      <div>
+        <label for="pageCountSelect">Pages to Extract</label>
+        <select id="pageCountSelect">
+          <option value="1">1 page (~10 results)</option>
+          <option value="2">2 pages (~20 results)</option>
+          <option value="3" selected>3 pages (~30 results)</option>
+          <option value="5">5 pages (~50 results)</option>
+          <option value="7">7 pages (~70 results)</option>
+          <option value="11">11 pages (~110 results)</option>
+          <option value="13">13 pages (~130 results)</option>
+        </select>
+      </div>
+    </div>
+    <div class="hint">Saves to <code>Downloads/<span id="folderPreview">SerpyDerpy</span>/</code> (random 7–27s delay between pages)</div>
+
+    <div class="checkbox-group">
+      <label class="checkbox-item">
+        <input type="checkbox" id="noPersonalizationCheckbox" checked />
+        <span>Try without personalization (<code>&amp;pws=0</code>)</span>
+      </label>
+      <label class="checkbox-item">
+        <input type="checkbox" id="decoyBrowsingCheckbox" checked />
+        <span>Parallel decoy browsing (open &amp; scroll link for 3–33s)</span>
+      </label>
+      <div id="decoyTypeRow" style="margin-left: 20px; display: flex; align-items: center; gap: 6px;">
+        <label for="decoyTypeSelect" style="margin: 0; font-size: 11px; color: var(--muted); font-weight: normal;">Link type:</label>
+        <select id="decoyTypeSelect" style="width: auto; padding: 2px 6px; font-size: 11px; height: 24px;">
+          <option value="any" selected>Any (sponsored or regular)</option>
+          <option value="sponsored">Prefer sponsored links</option>
+          <option value="organic">Regular links only</option>
+        </select>
+      </div>
+      <label class="checkbox-item">
+        <input type="checkbox" id="saveJsonCheckbox" checked />
+        <span>Save comprehensive metadata (<code>.json</code>)</span>
+      </label>
+      <label class="checkbox-item">
+        <input type="checkbox" id="saveHtmlCheckbox" checked />
+        <span>Also save raw search results HTML (<code>.html</code>)</span>
+      </label>
+      <label class="checkbox-item">
+        <input type="checkbox" id="reuseTabCheckbox" checked />
+        <span>Keep &amp; reuse single tab to view results</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Mode 1: Active Google Tab -->
+  <div class="section">
+    <div class="section-title">Mode 1: Active Google Tab</div>
+    <div class="hint" id="tabHint" style="margin-bottom: 8px;">Checking active browser tab...</div>
+    <div class="button-group">
+      <button id="extractSingleBtn" class="btn-secondary" disabled>
+        Save Current Page Only
+      </button>
+      <button id="crawlFromTabBtn" class="btn-primary" disabled>
+        Save &amp; Crawl Next Pages
+      </button>
+    </div>
+  </div>
+
+  <!-- Mode 2: Direct Search -->
+  <div class="section">
+    <div class="section-title">Mode 2: Direct Search</div>
+    <div style="margin-bottom: 8px;">
+      <input type="text" id="queryInput" placeholder="Enter Google search query..." />
+    </div>
+    <button id="searchBtn" class="btn-secondary">
+      Search &amp; Crawl Results
+    </button>
+  </div>
+
+  <!-- Live Status & URL Export -->
+  <div class="status-area" id="statusArea">
+    <div class="status-msg" id="statusMsg">Ready</div>
+    <div class="hint" id="fileInfo"></div>
+    <button id="stopCrawlBtn" class="btn-danger" style="display: none;">
+      ⏹ Stop Crawl (Keep Gathered Results)
+    </button>
+    <button id="copyUrlsBtn" class="btn-copy" style="display: none;">
+      📋 Copy Clean URLs for CleanRead
+    </button>
+    <textarea id="urlsPreview" class="preview-urls" readonly style="display: none;"></textarea>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

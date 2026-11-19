@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "SerpyDerpy",
+  "version": "1.0.5",
+  "description": "Converts Google Search results into clean Markdown and rich metadata JSON with titles, URLs, and snippets. Includes multi-page crawling, bot-friendly delays, parallel decoy browsing, and URL export for CleanRead.",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "scripting",
+    "downloads",
+    "storage",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "https://www.google.com/*",
+    "https://*.google.com/*",
+    "https://api.ipify.org/*",
+    "https://icanhazip.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "SerpyDerpy — SERP to Markdown & JSON",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon16.png",
+      "48": "icon48.png",
+      "128": "icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
