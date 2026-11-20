@@ -1,6 +1,6 @@
-# SerpyDerpy (v1.0.5)
+# SerpyDerpy (v1.0.6)
 
-A lightweight MS Edge / Google Chrome extension (Manifest V3) that extracts Google Search results into clean, organized Markdown files and comprehensive metadata JSON files. Designed to pair seamlessly with **CleanRead**.
+A lightweight MS Edge / Google Chrome extension (Manifest V3) that extracts Google Search results into clean, organized Markdown files and comprehensive metadata JSON files. Designed to pair seamlessly with **TidyTexty**.
 
 ## New in v1.0.5
 
@@ -141,4 +141,4 @@ A lightweight MS Edge / Google Chrome extension (Manifest V3) that extracts Goog
 3. If previously loaded, click the **Reload** (circular arrow) icon on the **SerpyDerpy** card.
    - If loading for the first time, click **Load unpacked** and select:
      `D:\Users\gabri\Antigravity\SerpyDerpy`
-4. Click the SerpyDerpy extension icon in your toolbar; verify the header displays **`v1.0.5`**.
+4. Click the SerpyDerpy extension icon in your toolbar; verify the header displays **`v1.0.6`**.

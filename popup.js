@@ -198,7 +198,7 @@ function displaySuccess(query, resultsCount, filename, cleanUrls, pagesCrawled) 
   currentCleanUrls = Array.isArray(cleanUrls) ? cleanUrls : [];
   if (currentCleanUrls.length > 0) {
     copyUrlsBtn.style.display = "block";
-    copyUrlsBtn.textContent = `📋 Copy ${currentCleanUrls.length} Clean URLs for CleanRead`;
+    copyUrlsBtn.textContent = `📋 Copy ${currentCleanUrls.length} Clean URLs for TidyTexty`;
     urlsPreview.style.display = "block";
     urlsPreview.value = currentCleanUrls.join("\n");
   } else {
