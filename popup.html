@@ -16,12 +16,10 @@
       --danger: #ef4444;
       --warning: #f59e0b;
     }
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
-      padding: 16px;
+      padding: 14px;
       width: 440px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg);
@@ -32,20 +30,10 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .header h1 {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--accent);
-      letter-spacing: -0.01em;
-    }
+    .header-left { display: flex; align-items: center; gap: 8px; }
+    .header h1 { margin: 0; font-size: 18px; font-weight: 700; color: var(--accent); }
     .version-badge {
       background: #0369a1;
       color: #e0f2fe;
@@ -53,18 +41,13 @@
       font-weight: 700;
       padding: 2px 7px;
       border-radius: 9999px;
-      letter-spacing: 0.02em;
-    }
-    .subtitle {
-      font-size: 11px;
-      color: var(--muted);
     }
     .section {
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 12px;
-      margin-bottom: 12px;
+      padding: 11px;
+      margin-bottom: 10px;
     }
     .section-title {
       font-size: 11px;
@@ -73,39 +56,25 @@
       letter-spacing: 0.05em;
       color: var(--muted);
       margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
-    label {
-      display: block;
-      font-weight: 600;
-      margin-bottom: 5px;
-      color: var(--text);
-      font-size: 12px;
-    }
-    input[type="text"], select {
+    label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 12px; }
+    input[type="text"], input[type="number"], select {
       width: 100%;
       background: #0f172a;
       border: 1px solid var(--border);
       border-radius: 6px;
       color: var(--text);
-      padding: 8px 10px;
+      padding: 7px 9px;
       font-size: 12px;
       outline: none;
     }
-    input[type="text"]:focus, select:focus {
-      border-color: var(--accent);
-    }
-    .row-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      margin-bottom: 8px;
-    }
-    .checkbox-group {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-top: 8px;
-    }
+    input:focus, select:focus { border-color: var(--accent); }
+    .row-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+    .row-3 { display: grid; grid-template-columns: 1.5fr 1fr 0.7fr; gap: 8px; margin-bottom: 8px; }
+    .checkbox-group { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
     .checkbox-item {
       display: flex;
       align-items: center;
@@ -114,75 +83,29 @@
       color: var(--muted);
       cursor: pointer;
     }
-    .checkbox-item input {
-      margin: 0;
-      cursor: pointer;
-    }
-    .hint {
-      margin-top: 4px;
-      font-size: 11px;
-      color: var(--muted);
-    }
-    .button-group {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-    }
+    .checkbox-item input { margin: 0; cursor: pointer; }
+    .hint { margin-top: 4px; font-size: 11px; color: var(--muted); }
+    .button-group { display: flex; gap: 8px; margin-top: 8px; }
     button {
       cursor: pointer;
       border: none;
       border-radius: 6px;
-      padding: 8px 12px;
+      padding: 8px 10px;
       font-size: 12px;
       font-weight: 600;
-      transition: background 0.15s ease, opacity 0.15s ease;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
       width: 100%;
     }
-    button:disabled {
-      opacity: 0.45;
-      cursor: not-allowed;
-    }
-    .btn-primary {
-      background: var(--accent);
-      color: #082f49;
-    }
-    .btn-primary:hover:not(:disabled) {
-      background: var(--accent-hover);
-      color: #ffffff;
-    }
-    .btn-secondary {
-      background: #334155;
-      color: var(--text);
-    }
-    .btn-secondary:hover:not(:disabled) {
-      background: #475569;
-    }
-    .btn-danger {
-      background: #7f1d1d;
-      color: #fecaca;
-      border: 1px solid #991b1b;
-      margin-top: 8px;
-    }
-    .btn-danger:hover:not(:disabled) {
-      background: #991b1b;
-      color: #ffffff;
-    }
-    .btn-copy {
-      background: #14532d;
-      color: #bbf7d0;
-      border: 1px solid #166534;
-      margin-top: 8px;
-    }
-    .btn-copy:hover:not(:disabled) {
-      background: #166534;
-      color: #ffffff;
-    }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #082f49; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); color: #fff; }
+    .btn-secondary { background: #334155; color: var(--text); }
+    .btn-secondary:hover:not(:disabled) { background: #475569; }
+    .btn-dashboard { background: #0f766e; color: #ccfbf1; border: 1px solid #14b8a6; }
+    .btn-dashboard:hover:not(:disabled) { background: #115e59; color: #fff; }
+    .btn-danger { background: #7f1d1d; color: #fecaca; margin-top: 8px; }
+    .btn-copy { background: #14532d; color: #bbf7d0; margin-top: 8px; }
     .status-area {
-      margin-top: 10px;
+      margin-top: 8px;
       padding: 10px;
       border-radius: 6px;
       background: #0f172a;
@@ -190,141 +113,149 @@
       font-size: 12px;
       display: none;
     }
-    .status-area.visible {
-      display: block;
-    }
-    .status-msg {
-      font-weight: 600;
-      margin-bottom: 4px;
-      word-break: break-word;
-    }
-    .status-msg.success {
-      color: var(--success);
-    }
-    .status-msg.error {
-      color: var(--danger);
-    }
-    .status-msg.warning {
-      color: var(--warning);
-    }
+    .status-area.visible { display: block; }
+    .status-msg { font-weight: 600; margin-bottom: 4px; word-break: break-word; }
+    .status-msg.success { color: var(--success); }
+    .status-msg.error { color: var(--danger); }
+    .status-msg.warning { color: var(--warning); }
     .preview-urls {
       width: 100%;
-      height: 90px;
+      height: 80px;
       background: #090d16;
       border: 1px solid var(--border);
       border-radius: 4px;
       color: #cbd5e1;
       font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
       font-size: 11px;
-      padding: 6px 8px;
+      padding: 6px;
       margin-top: 8px;
       resize: vertical;
-      outline: none;
-      white-space: pre;
     }
+    .pill {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: #334155;
+      color: #e2e8f0;
+      text-transform: uppercase;
+    }
+    .pill.running { background: #0369a1; color: #e0f2fe; }
+    .pill.warning { background: #92400e; color: #fef3c7; }
   </style>
 </head>
 <body>
   <div class="header">
     <div class="header-left">
       <h1>SerpyDerpy</h1>
-      <span class="version-badge" id="versionBadge">v1.0.6</span>
+      <span class="version-badge" id="versionBadge">v2.0.0</span>
     </div>
-    <span class="subtitle">SERP to Markdown &amp; JSON</span>
+    <button id="openDashboardBtn" class="btn-dashboard" style="width: auto; padding: 5px 10px;">
+      Campaign Dashboard
+    </button>
   </div>
 
-  <!-- Settings & Options -->
-  <div class="section" style="padding-bottom: 10px;">
-    <div class="row-grid">
+  <!-- Compact Campaign Status Card -->
+  <div class="section" id="campaignCard" style="display: none;">
+    <div class="section-title">
+      <span>Campaign Mode</span>
+      <span class="pill" id="campaignStatusPill">IDLE</span>
+    </div>
+    <div class="hint" id="campaignSummaryText" style="margin-top: 0; color: var(--text);"></div>
+    <div class="button-group">
+      <button id="campaignToggleBtn" class="btn-secondary">Pause</button>
+      <button id="campaignOpenBtn" class="btn-primary">Open Dashboard</button>
+    </div>
+  </div>
+
+  <!-- Interactive Mode Settings -->
+  <div class="section">
+    <div class="section-title">Interactive Mode Settings (v2 Schema)</div>
+    <div class="row-3">
       <div>
         <label for="subfolderInput">Subfolder</label>
-        <input type="text" id="subfolderInput" value="SerpyDerpy" placeholder="SerpyDerpy" />
+        <input type="text" id="subfolderInput" value="SerpyDerpy/Interactive" />
       </div>
       <div>
-        <label for="pageCountSelect">Pages to Extract</label>
+        <label for="pageCountSelect">Pages</label>
         <select id="pageCountSelect">
-          <option value="1">1 page (~10 results)</option>
-          <option value="2">2 pages (~20 results)</option>
-          <option value="3" selected>3 pages (~30 results)</option>
-          <option value="5">5 pages (~50 results)</option>
-          <option value="7">7 pages (~70 results)</option>
-          <option value="11">11 pages (~110 results)</option>
-          <option value="13">13 pages (~130 results)</option>
+          <option value="1">1 page</option>
+          <option value="2">2 pages</option>
+          <option value="3" selected>3 pages</option>
+          <option value="5">5 pages</option>
+          <option value="7">7 pages</option>
+          <option value="11">11 pages</option>
+          <option value="custom">Custom (1-20)</option>
         </select>
       </div>
+      <div>
+        <label for="customPagesInput">Custom</label>
+        <input type="number" id="customPagesInput" min="1" max="20" value="3" disabled />
+      </div>
     </div>
-    <div class="hint">Saves to <code>Downloads/<span id="folderPreview">SerpyDerpy</span>/</code> (random 7–27s delay between pages)</div>
+    <div class="hint">Saves to <code id="folderPreview">Downloads/SerpyDerpy/Interactive/</code></div>
 
     <div class="checkbox-group">
       <label class="checkbox-item">
         <input type="checkbox" id="noPersonalizationCheckbox" checked />
-        <span>Try without personalization (<code>&amp;pws=0</code>)</span>
+        <span>Try without personalization on Google (<code>&amp;pws=0</code>)</span>
       </label>
       <label class="checkbox-item">
         <input type="checkbox" id="decoyBrowsingCheckbox" checked />
-        <span>Parallel decoy browsing (open &amp; scroll link for 3–33s)</span>
-      </label>
-      <div id="decoyTypeRow" style="margin-left: 20px; display: flex; align-items: center; gap: 6px;">
-        <label for="decoyTypeSelect" style="margin: 0; font-size: 11px; color: var(--muted); font-weight: normal;">Link type:</label>
-        <select id="decoyTypeSelect" style="width: auto; padding: 2px 6px; font-size: 11px; height: 24px;">
-          <option value="any" selected>Any (sponsored or regular)</option>
-          <option value="sponsored">Prefer sponsored links</option>
-          <option value="organic">Regular links only</option>
-        </select>
-      </div>
-      <label class="checkbox-item">
-        <input type="checkbox" id="saveJsonCheckbox" checked />
-        <span>Save comprehensive metadata (<code>.json</code>)</span>
+        <span>Parallel decoy browsing (ad relevance + 1.5% cap)</span>
       </label>
       <label class="checkbox-item">
         <input type="checkbox" id="saveHtmlCheckbox" checked />
-        <span>Also save raw search results HTML (<code>.html</code>)</span>
+        <span>Save raw SERP HTML (<code>.html</code>)</span>
+      </label>
+      <label class="checkbox-item">
+        <input type="checkbox" id="fetchLinksCheckbox" />
+        <span>Also fetch &amp; archive discovered result links</span>
       </label>
       <label class="checkbox-item">
         <input type="checkbox" id="reuseTabCheckbox" checked />
-        <span>Keep &amp; reuse single tab to view results</span>
+        <span>Keep &amp; reuse single tab for direct searches</span>
+      </label>
+      <label class="checkbox-item">
+        <input type="checkbox" id="recordIpCheckbox" />
+        <span>Record public IP in metadata (opt-in; default OFF)</span>
       </label>
     </div>
   </div>
 
-  <!-- Mode 1: Active Google Tab -->
+  <!-- Mode 1: Active Search Tab -->
   <div class="section">
-    <div class="section-title">Mode 1: Active Google Tab</div>
+    <div class="section-title">Mode 1: Active Search Tab (Google / Bing / DuckDuckGo)</div>
     <div class="hint" id="tabHint" style="margin-bottom: 8px;">Checking active browser tab...</div>
     <div class="button-group">
-      <button id="extractSingleBtn" class="btn-secondary" disabled>
-        Save Current Page Only
-      </button>
-      <button id="crawlFromTabBtn" class="btn-primary" disabled>
-        Save &amp; Crawl Next Pages
-      </button>
+      <button id="extractSingleBtn" class="btn-secondary" disabled>Save Current Page Only</button>
+      <button id="crawlFromTabBtn" class="btn-primary" disabled>Save &amp; Crawl Next Pages</button>
     </div>
   </div>
 
   <!-- Mode 2: Direct Search -->
   <div class="section">
     <div class="section-title">Mode 2: Direct Search</div>
-    <div style="margin-bottom: 8px;">
-      <input type="text" id="queryInput" placeholder="Enter Google search query..." />
+    <div class="row-grid" style="grid-template-columns: 0.9fr 2fr;">
+      <select id="engineSelect">
+        <option value="google" selected>Google</option>
+        <option value="bing">Bing</option>
+        <option value="duckduckgo">DuckDuckGo</option>
+      </select>
+      <input type="text" id="queryInput" placeholder="Enter search query..." />
     </div>
-    <button id="searchBtn" class="btn-secondary">
-      Search &amp; Crawl Results
-    </button>
+    <button id="searchBtn" class="btn-secondary">Search &amp; Crawl Results</button>
   </div>
 
   <!-- Live Status & URL Export -->
   <div class="status-area" id="statusArea">
     <div class="status-msg" id="statusMsg">Ready</div>
     <div class="hint" id="fileInfo"></div>
-    <button id="stopCrawlBtn" class="btn-danger" style="display: none;">
-      ⏹ Stop Crawl (Keep Gathered Results)
-    </button>
-    <button id="copyUrlsBtn" class="btn-copy" style="display: none;">
-      📋 Copy Clean URLs for TidyTexty
-    </button>
+    <button id="stopCrawlBtn" class="btn-danger" style="display: none;">Stop Crawl (Keep Gathered Results)</button>
+    <button id="copyUrlsBtn" class="btn-copy" style="display: none;">Copy Clean URLs</button>
     <textarea id="urlsPreview" class="preview-urls" readonly style="display: none;"></textarea>
   </div>
 
-  <script src="popup.js"></script>
+  <script type="module" src="popup.js"></script>
 </body>
 </html>

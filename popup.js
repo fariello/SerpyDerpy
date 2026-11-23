@@ -1,20 +1,35 @@
-// SerpyDerpy Popup Script (v1.0.5)
+/**
+ * SerpyDerpy v2 Popup Script (Interactive Mode + Campaign Status Launcher)
+ * Strictly uses textContent for all untrusted text (REQ-UI-04).
+ */
+
+import * as googleAdapter from "./engines/google.js";
+import * as bingAdapter from "./engines/bing.js";
+import * as ddgAdapter from "./engines/duckduckgo.js";
 
 const versionBadge = document.getElementById("versionBadge");
+const openDashboardBtn = document.getElementById("openDashboardBtn");
+const campaignCard = document.getElementById("campaignCard");
+const campaignStatusPill = document.getElementById("campaignStatusPill");
+const campaignSummaryText = document.getElementById("campaignSummaryText");
+const campaignToggleBtn = document.getElementById("campaignToggleBtn");
+const campaignOpenBtn = document.getElementById("campaignOpenBtn");
+
 const subfolderInput = document.getElementById("subfolderInput");
 const folderPreview = document.getElementById("folderPreview");
 const pageCountSelect = document.getElementById("pageCountSelect");
+const customPagesInput = document.getElementById("customPagesInput");
 const noPersonalizationCheckbox = document.getElementById("noPersonalizationCheckbox");
 const decoyBrowsingCheckbox = document.getElementById("decoyBrowsingCheckbox");
-const decoyTypeSelect = document.getElementById("decoyTypeSelect");
-const saveJsonCheckbox = document.getElementById("saveJsonCheckbox");
 const saveHtmlCheckbox = document.getElementById("saveHtmlCheckbox");
+const fetchLinksCheckbox = document.getElementById("fetchLinksCheckbox");
 const reuseTabCheckbox = document.getElementById("reuseTabCheckbox");
+const recordIpCheckbox = document.getElementById("recordIpCheckbox");
 
 const tabHint = document.getElementById("tabHint");
 const extractSingleBtn = document.getElementById("extractSingleBtn");
 const crawlFromTabBtn = document.getElementById("crawlFromTabBtn");
-
+const engineSelect = document.getElementById("engineSelect");
 const queryInput = document.getElementById("queryInput");
 const searchBtn = document.getElementById("searchBtn");
 
@@ -26,11 +41,10 @@ const copyUrlsBtn = document.getElementById("copyUrlsBtn");
 const urlsPreview = document.getElementById("urlsPreview");
 
 let activeTabId = null;
-let activeQuery = "";
-let activePageNum = 1;
+let activeEngine = null;
 let currentCleanUrls = [];
+let latestCampaignSnapshot = null;
 
-// 1. Dynamic Version Pill
 try {
   const manifest = chrome.runtime.getManifest();
   if (versionBadge && manifest.version) {
@@ -38,389 +52,272 @@ try {
   }
 } catch (_) {}
 
-function isGoogleSearchUrl(url) {
-  if (!url) return false;
-  try {
-    const u = new URL(url);
-    const host = u.hostname.toLowerCase();
-    const isGoogle =
-      host === "google.com" || host.endsWith(".google.com") || host.includes("google.");
-    return isGoogle && (u.pathname.startsWith("/search") || u.searchParams.has("q"));
-  } catch (_) {
-    return false;
+function getSelectedPageCount() {
+  if (pageCountSelect.value === "custom") {
+    const n = parseInt(customPagesInput.value, 10);
+    return Number.isInteger(n) && n >= 1 && n <= 20 ? n : 3;
   }
+  return parseInt(pageCountSelect.value, 10) || 3;
 }
 
-function updateButtonLabels() {
-  const pages = pageCountSelect.value || "1";
-  crawlFromTabBtn.textContent = `🚀 Save & Crawl (${pages} pgs)`;
-  searchBtn.textContent = `🔍 Search & Crawl (${pages} pgs)`;
-  if (activePageNum > 1) {
-    extractSingleBtn.textContent = `📄 Save Page ${activePageNum} Only`;
-  } else {
-    extractSingleBtn.textContent = "📄 Save Current Page Only";
-  }
+function updateLabels() {
+  const pgs = getSelectedPageCount();
+  crawlFromTabBtn.textContent = `Save & Crawl (${pgs} pgs)`;
+  searchBtn.textContent = `Search & Crawl (${pgs} pgs)`;
+  folderPreview.textContent = `Downloads/${subfolderInput.value.trim() || "SerpyDerpy/Interactive"}/`;
 }
 
-// 2. Load saved preferences
+function savePrefs() {
+  chrome.storage.local.set({
+    sdSubfolder: subfolderInput.value.trim() || "SerpyDerpy/Interactive",
+    sdPagePreset: pageCountSelect.value,
+    sdCustomPages: customPagesInput.value,
+    sdNoPersonalization: noPersonalizationCheckbox.checked,
+    sdDecoyBrowsing: decoyBrowsingCheckbox.checked,
+    sdSaveHtml: saveHtmlCheckbox.checked,
+    sdFetchLinks: fetchLinksCheckbox.checked,
+    sdReuseTab: reuseTabCheckbox.checked,
+    sdRecordIp: recordIpCheckbox.checked,
+    sdEngine: engineSelect.value
+  });
+}
+
 chrome.storage.local.get(
   [
-    "serpyderpySubfolder",
-    "serpyderpyPageCount",
-    "serpyderpyNoPersonalization",
-    "serpyderpyDecoyBrowsing",
-    "serpyderpyDecoyType",
-    "serpyderpySaveJson",
-    "serpyderpySaveHtml",
-    "serpyderpyReuseTab"
+    "sdSubfolder",
+    "sdPagePreset",
+    "sdCustomPages",
+    "sdNoPersonalization",
+    "sdDecoyBrowsing",
+    "sdSaveHtml",
+    "sdFetchLinks",
+    "sdReuseTab",
+    "sdRecordIp",
+    "sdEngine"
   ],
   (res) => {
-    if (res.serpyderpySubfolder) {
-      subfolderInput.value = res.serpyderpySubfolder;
-      folderPreview.textContent = res.serpyderpySubfolder;
-    }
-    if (res.serpyderpyPageCount) {
-      pageCountSelect.value = res.serpyderpyPageCount;
-    }
-    if (res.serpyderpyNoPersonalization !== undefined) {
-      noPersonalizationCheckbox.checked = Boolean(res.serpyderpyNoPersonalization);
-    }
-    if (res.serpyderpyDecoyBrowsing !== undefined) {
-      decoyBrowsingCheckbox.checked = Boolean(res.serpyderpyDecoyBrowsing);
-    }
-    if (res.serpyderpyDecoyType) {
-      decoyTypeSelect.value = res.serpyderpyDecoyType;
-    }
-    if (res.serpyderpySaveJson !== undefined) {
-      saveJsonCheckbox.checked = Boolean(res.serpyderpySaveJson);
-    }
-    if (res.serpyderpySaveHtml !== undefined) {
-      saveHtmlCheckbox.checked = Boolean(res.serpyderpySaveHtml);
-    }
-    if (res.serpyderpyReuseTab !== undefined) {
-      reuseTabCheckbox.checked = Boolean(res.serpyderpyReuseTab);
-    }
-    decoyTypeSelect.disabled = !decoyBrowsingCheckbox.checked;
-    updateButtonLabels();
+    if (res.sdSubfolder) subfolderInput.value = res.sdSubfolder;
+    if (res.sdPagePreset) pageCountSelect.value = res.sdPagePreset;
+    if (res.sdCustomPages) customPagesInput.value = res.sdCustomPages;
+    customPagesInput.disabled = pageCountSelect.value !== "custom";
+    if (res.sdNoPersonalization !== undefined) noPersonalizationCheckbox.checked = Boolean(res.sdNoPersonalization);
+    if (res.sdDecoyBrowsing !== undefined) decoyBrowsingCheckbox.checked = Boolean(res.sdDecoyBrowsing);
+    if (res.sdSaveHtml !== undefined) saveHtmlCheckbox.checked = Boolean(res.sdSaveHtml);
+    if (res.sdFetchLinks !== undefined) fetchLinksCheckbox.checked = Boolean(res.sdFetchLinks);
+    if (res.sdReuseTab !== undefined) reuseTabCheckbox.checked = Boolean(res.sdReuseTab);
+    if (res.sdRecordIp !== undefined) recordIpCheckbox.checked = Boolean(res.sdRecordIp);
+    if (res.sdEngine) engineSelect.value = res.sdEngine;
+    updateLabels();
   }
 );
 
-subfolderInput.addEventListener("input", () => {
-  const val = subfolderInput.value.trim() || "SerpyDerpy";
-  folderPreview.textContent = val;
-  chrome.storage.local.set({ serpyderpySubfolder: val });
-});
-
+subfolderInput.addEventListener("input", () => { updateLabels(); savePrefs(); });
 pageCountSelect.addEventListener("change", () => {
-  chrome.storage.local.set({ serpyderpyPageCount: pageCountSelect.value });
-  updateButtonLabels();
+  customPagesInput.disabled = pageCountSelect.value !== "custom";
+  updateLabels();
+  savePrefs();
 });
+customPagesInput.addEventListener("input", () => { updateLabels(); savePrefs(); });
+[
+  noPersonalizationCheckbox,
+  decoyBrowsingCheckbox,
+  saveHtmlCheckbox,
+  fetchLinksCheckbox,
+  reuseTabCheckbox,
+  recordIpCheckbox,
+  engineSelect
+].forEach((el) => el.addEventListener("change", savePrefs));
 
-noPersonalizationCheckbox.addEventListener("change", () => {
-  chrome.storage.local.set({
-    serpyderpyNoPersonalization: noPersonalizationCheckbox.checked
-  });
-});
+function openDashboard() {
+  chrome.runtime.sendMessage({ type: "OPEN_DASHBOARD" });
+}
+openDashboardBtn.addEventListener("click", openDashboard);
+campaignOpenBtn.addEventListener("click", openDashboard);
 
-decoyBrowsingCheckbox.addEventListener("change", () => {
-  chrome.storage.local.set({
-    serpyderpyDecoyBrowsing: decoyBrowsingCheckbox.checked
-  });
-  decoyTypeSelect.disabled = !decoyBrowsingCheckbox.checked;
-});
-
-decoyTypeSelect.addEventListener("change", () => {
-  chrome.storage.local.set({
-    serpyderpyDecoyType: decoyTypeSelect.value
-  });
-});
-
-saveJsonCheckbox.addEventListener("change", () => {
-  chrome.storage.local.set({ serpyderpySaveJson: saveJsonCheckbox.checked });
-});
-
-saveHtmlCheckbox.addEventListener("change", () => {
-  chrome.storage.local.set({ serpyderpySaveHtml: saveHtmlCheckbox.checked });
-});
-
-reuseTabCheckbox.addEventListener("change", () => {
-  chrome.storage.local.set({ serpyderpyReuseTab: reuseTabCheckbox.checked });
-});
-
-// 3. Inspect Active Tab
+// Inspect Active Tab across Google, Bing, and DuckDuckGo (REQ-INT-01 #1)
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
   if (!tabs || tabs.length === 0) return;
   const tab = tabs[0];
   activeTabId = tab.id;
 
-  if (isGoogleSearchUrl(tab.url)) {
-    try {
-      const u = new URL(tab.url);
-      activeQuery = u.searchParams.get("q") || "";
-      const startParam = parseInt(u.searchParams.get("start") || "0", 10);
-      activePageNum = Math.floor(startParam / 10) + 1;
-    } catch (_) {
-      activePageNum = 1;
+  const adapters = [
+    ["google", googleAdapter],
+    ["bing", bingAdapter],
+    ["duckduckgo", ddgAdapter]
+  ];
+  for (const [eng, adapter] of adapters) {
+    if (adapter.isEngineSearchUrl(tab.url)) {
+      activeEngine = eng;
+      const parsed = adapter.parseActiveTabQuery(tab.url);
+      extractSingleBtn.disabled = false;
+      crawlFromTabBtn.disabled = false;
+      tabHint.textContent = parsed.query
+        ? `Active ${eng} tab: "${parsed.query}" (Page ${parsed.pageNumber})`
+        : `Active ${eng} search tab (Page ${parsed.pageNumber})`;
+      return;
     }
-
-    extractSingleBtn.disabled = false;
-    crawlFromTabBtn.disabled = false;
-    decoyTypeSelect.disabled = !decoyBrowsingCheckbox.checked;
-    updateButtonLabels();
-
-    tabHint.textContent = activeQuery
-      ? `Active Query: "${activeQuery}" (Page ${activePageNum})`
-      : `Active tab is a Google search page (Page ${activePageNum})`;
-  } else {
-    extractSingleBtn.disabled = true;
-    crawlFromTabBtn.disabled = true;
-    tabHint.textContent =
-      "Active tab is not Google Search. Open a search page or use Mode 2.";
   }
+  extractSingleBtn.disabled = true;
+  crawlFromTabBtn.disabled = true;
+  tabHint.textContent = "Active tab is not a Google, Bing, or DuckDuckGo search page.";
 });
 
 function setBusy(isBusy) {
-  extractSingleBtn.disabled = isBusy;
-  crawlFromTabBtn.disabled = isBusy;
+  extractSingleBtn.disabled = isBusy || !activeEngine;
+  crawlFromTabBtn.disabled = isBusy || !activeEngine;
   searchBtn.disabled = isBusy;
-  pageCountSelect.disabled = isBusy;
   stopCrawlBtn.style.display = isBusy ? "block" : "none";
 }
 
-function displaySuccess(query, resultsCount, filename, cleanUrls, pagesCrawled) {
-  setBusy(false);
-  statusArea.classList.add("visible");
-  statusMsg.className = "status-msg success";
-  const pgsText = pagesCrawled && pagesCrawled > 1 ? ` across ${pagesCrawled} pages` : "";
-  statusMsg.textContent = `✓ Extracted ${resultsCount} organic result(s)${pgsText} for "${query}"`;
-  fileInfo.textContent = `Saved to Downloads/${filename}`;
-
-  currentCleanUrls = Array.isArray(cleanUrls) ? cleanUrls : [];
-  if (currentCleanUrls.length > 0) {
-    copyUrlsBtn.style.display = "block";
-    copyUrlsBtn.textContent = `📋 Copy ${currentCleanUrls.length} Clean URLs for TidyTexty`;
-    urlsPreview.style.display = "block";
-    urlsPreview.value = currentCleanUrls.join("\n");
-  } else {
-    copyUrlsBtn.style.display = "none";
-    urlsPreview.style.display = "none";
-  }
-}
-
-function displayError(msg) {
-  setBusy(false);
-  statusArea.classList.add("visible");
-  statusMsg.className = "status-msg error";
-  statusMsg.textContent = `Error: ${msg}`;
-  fileInfo.textContent = "";
-  stopCrawlBtn.style.display = "none";
-  copyUrlsBtn.style.display = "none";
-  urlsPreview.style.display = "none";
-}
-
-function applyCrawlState(state) {
+function renderInteractiveState(state) {
   if (!state) return;
-
   if (state.isRunning) {
     setBusy(true);
     statusArea.classList.add("visible");
-    if (state.isCaptcha) {
-      statusMsg.className = "status-msg warning";
-    } else {
-      statusMsg.className = "status-msg";
+    statusMsg.className = state.isChallenge ? "status-msg warning" : "status-msg";
+    statusMsg.textContent = state.statusText || "Crawling...";
+    fileInfo.textContent = state.query ? `${state.engine}: "${state.query}"` : "";
+  } else if (state.savedSummary) {
+    setBusy(false);
+    statusArea.classList.add("visible");
+    statusMsg.className = "status-msg success";
+    statusMsg.textContent = state.statusText || "Saved.";
+    fileInfo.textContent = state.savedSummary;
+    currentCleanUrls = Array.isArray(state.cleanUrls) ? state.cleanUrls : [];
+    if (currentCleanUrls.length > 0) {
+      copyUrlsBtn.style.display = "block";
+      copyUrlsBtn.textContent = `Copy ${currentCleanUrls.length} Clean URLs`;
+      urlsPreview.style.display = "block";
+      urlsPreview.value = currentCleanUrls.join("\n");
     }
-    statusMsg.textContent = state.statusText || "Crawling Google search results...";
-    fileInfo.textContent = state.query ? `Query: "${state.query}"` : "";
-  } else if (state.savedFilename) {
-    displaySuccess(
-      state.query,
-      state.totalResults,
-      state.savedFilename,
-      state.cleanUrls,
-      state.totalPages
-    );
   } else if (state.error) {
-    displayError(state.error);
+    setBusy(false);
+    statusArea.classList.add("visible");
+    statusMsg.className = "status-msg error";
+    statusMsg.textContent = `Error: ${state.error}`;
+    fileInfo.textContent = "";
   }
 }
 
-// 4. Initial Sync with Background Crawl State
-chrome.runtime.sendMessage({ type: "GET_CRAWL_STATE" }, (state) => {
-  if (chrome.runtime.lastError) return;
-  if (state && state.isRunning) {
-    applyCrawlState(state);
+function renderCampaignCard(snapshot) {
+  latestCampaignSnapshot = snapshot;
+  if (!snapshot || !snapshot.activeCampaignId) {
+    campaignCard.style.display = "none";
+    return;
+  }
+  campaignCard.style.display = "block";
+  const chalCount = (snapshot.challenges || []).length;
+  campaignStatusPill.textContent = chalCount > 0 ? `CAP! (${chalCount})` : snapshot.isRunning ? "RUNNING" : "PAUSED";
+  campaignStatusPill.className = chalCount > 0 ? "pill warning" : snapshot.isRunning ? "pill running" : "pill";
+  campaignSummaryText.textContent =
+    `Campaign ${snapshot.activeCampaignId} · Pending fetches: ${snapshot.fetchers?.pendingCount ?? 0}` +
+    (chalCount > 0 ? ` · ${chalCount} tab(s) need human click` : "");
+  campaignToggleBtn.textContent = snapshot.isRunning ? "Pause Campaign" : "Resume Campaign";
+}
+
+campaignToggleBtn.addEventListener("click", () => {
+  if (!latestCampaignSnapshot?.activeCampaignId) return;
+  if (latestCampaignSnapshot.isRunning) {
+    chrome.runtime.sendMessage({ type: "CAMPAIGN_PAUSE" });
+  } else {
+    chrome.runtime.sendMessage({ type: "CAMPAIGN_START", campaignId: latestCampaignSnapshot.activeCampaignId });
   }
 });
 
-// 5. Live State Updates from Background
-chrome.runtime.onMessage.addListener((message) => {
-  if (message && message.type === "CRAWL_STATE_UPDATE" && message.state) {
-    applyCrawlState(message.state);
-  }
+chrome.runtime.sendMessage({ type: "GET_INTERACTIVE_STATE" }, (res) => {
+  if (chrome.runtime.lastError || !res) return;
+  if (res.interactive?.isRunning) renderInteractiveState(res.interactive);
+  if (res.campaign) renderCampaignCard(res.campaign);
 });
 
-// Mode 1: 1-Click Save Current Page Only
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg?.type === "INTERACTIVE_STATE_UPDATE") renderInteractiveState(msg.state);
+  if (msg?.type === "CAMPAIGN_LIVE_UPDATE") renderCampaignCard(msg.snapshot);
+});
+
+function buildCommonOptions() {
+  return {
+    subfolder: subfolderInput.value.trim() || "SerpyDerpy/Interactive",
+    saveHtml: saveHtmlCheckbox.checked,
+    noPersonalization: noPersonalizationCheckbox.checked,
+    decoyBrowsing: decoyBrowsingCheckbox.checked,
+    fetchLinks: fetchLinksCheckbox.checked,
+    recordPublicIp: recordIpCheckbox.checked
+  };
+}
+
 extractSingleBtn.addEventListener("click", () => {
   if (!activeTabId) return;
-
   setBusy(true);
   statusArea.classList.add("visible");
   statusMsg.className = "status-msg";
-  statusMsg.textContent = "Extracting current page results...";
-  fileInfo.textContent = "";
-  stopCrawlBtn.style.display = "none";
-
-  const subfolder = subfolderInput.value.trim() || "SerpyDerpy";
-  const saveHtml = saveHtmlCheckbox.checked;
-  const saveJson = saveJsonCheckbox.checked;
-  const decoyBrowsing = decoyBrowsingCheckbox.checked;
-  const decoyType = decoyTypeSelect.value;
-
+  statusMsg.textContent = "Extracting current page...";
   chrome.runtime.sendMessage(
-    {
-      type: "SAVE_CURRENT_PAGE",
-      tabId: activeTabId,
-      subfolder,
-      saveHtml,
-      saveJson,
-      decoyBrowsing,
-      decoyType
-    },
+    { type: "INTERACTIVE_SAVE_TAB", tabId: activeTabId, pagesToExtract: 1, ...buildCommonOptions() },
     (res) => {
-      if (res && res.ok) {
-        displaySuccess(res.query, res.resultsCount, res.filename, res.cleanUrls, 1);
-      } else {
-        displayError((res && res.error) || "Single page save failed");
-      }
+      if (!res?.ok) renderInteractiveState({ isRunning: false, error: res?.error || "Failed" });
     }
   );
 });
 
-// Mode 1: Save & Crawl Next Pages from Active Tab
 crawlFromTabBtn.addEventListener("click", () => {
   if (!activeTabId) return;
-
-  const pagesToExtract = parseInt(pageCountSelect.value, 10);
-  const subfolder = subfolderInput.value.trim() || "SerpyDerpy";
-  const saveHtml = saveHtmlCheckbox.checked;
-  const saveJson = saveJsonCheckbox.checked;
-  const decoyBrowsing = decoyBrowsingCheckbox.checked;
-  const decoyType = decoyTypeSelect.value;
-  const noPersonalization = noPersonalizationCheckbox.checked;
-
   setBusy(true);
   statusArea.classList.add("visible");
   statusMsg.className = "status-msg";
-  statusMsg.textContent = `Starting crawl from active tab for ${pagesToExtract} page(s)...`;
-  fileInfo.textContent = "Checking page results...";
-
+  statusMsg.textContent = "Starting crawl from active tab...";
   chrome.runtime.sendMessage(
     {
-      type: "START_CRAWL_FROM_TAB",
+      type: "INTERACTIVE_SAVE_TAB",
       tabId: activeTabId,
-      pagesToExtract,
-      subfolder,
-      saveHtml,
-      saveJson,
-      decoyBrowsing,
-      decoyType,
-      noPersonalization,
-      query: activeQuery
+      pagesToExtract: getSelectedPageCount(),
+      ...buildCommonOptions()
     },
     (res) => {
-      if (res && res.ok) {
-        displaySuccess(
-          res.query,
-          res.resultsCount,
-          res.filename,
-          res.cleanUrls,
-          res.pagesCrawled
-        );
-      } else {
-        displayError((res && res.error) || "Crawl from tab failed");
-      }
+      if (!res?.ok) renderInteractiveState({ isRunning: false, error: res?.error || "Failed" });
     }
   );
 });
 
-// Mode 2: Direct Search & Crawl
 searchBtn.addEventListener("click", () => {
   const query = queryInput.value.trim();
   if (!query) {
-    displayError("Please enter a search query");
+    renderInteractiveState({ isRunning: false, error: "Please enter a search query." });
     return;
   }
-
-  const pagesToExtract = parseInt(pageCountSelect.value, 10);
-  const subfolder = subfolderInput.value.trim() || "SerpyDerpy";
-  const reuseTab = reuseTabCheckbox.checked;
-  const saveHtml = saveHtmlCheckbox.checked;
-  const saveJson = saveJsonCheckbox.checked;
-  const decoyBrowsing = decoyBrowsingCheckbox.checked;
-  const decoyType = decoyTypeSelect.value;
-  const noPersonalization = noPersonalizationCheckbox.checked;
-
   setBusy(true);
   statusArea.classList.add("visible");
   statusMsg.className = "status-msg";
-  statusMsg.textContent = reuseTab
-    ? `Searching in dedicated Google tab for "${query}" (${pagesToExtract} page(s))...`
-    : `Running search for "${query}" (${pagesToExtract} page(s))...`;
-  fileInfo.textContent = "Waiting for initial search results...";
-
+  statusMsg.textContent = `Launching ${engineSelect.value} search...`;
   chrome.runtime.sendMessage(
     {
-      type: "SEARCH_AND_CRAWL",
+      type: "INTERACTIVE_DIRECT_SEARCH",
+      engine: engineSelect.value,
       query,
-      pagesToExtract,
-      subfolder,
-      reuseTab,
-      saveHtml,
-      saveJson,
-      decoyBrowsing,
-      decoyType,
-      noPersonalization
+      pagesToExtract: getSelectedPageCount(),
+      reuseTab: reuseTabCheckbox.checked,
+      ...buildCommonOptions()
     },
     (res) => {
-      if (res && res.ok) {
-        displaySuccess(
-          res.query,
-          res.resultsCount,
-          res.filename,
-          res.cleanUrls,
-          res.pagesCrawled
-        );
-      } else {
-        displayError((res && res.error) || "Search and crawl failed");
-      }
+      if (!res?.ok) renderInteractiveState({ isRunning: false, error: res?.error || "Failed" });
     }
   );
 });
 
 queryInput.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    searchBtn.click();
-  }
+  if (e.key === "Enter") searchBtn.click();
 });
 
-// Stop Crawl Button
 stopCrawlBtn.addEventListener("click", () => {
   stopCrawlBtn.disabled = true;
-  stopCrawlBtn.textContent = "Stopping...";
-  chrome.runtime.sendMessage({ type: "STOP_CRAWL" }, () => {
-    statusMsg.textContent = "Finalizing gathered results...";
-  });
+  chrome.runtime.sendMessage({ type: "STOP_INTERACTIVE" });
 });
 
-// Copy URLs Button
 copyUrlsBtn.addEventListener("click", () => {
   if (currentCleanUrls.length === 0) return;
-  const text = currentCleanUrls.join("\n");
-  navigator.clipboard.writeText(text).then(() => {
+  navigator.clipboard.writeText(currentCleanUrls.join("\n")).then(() => {
     const orig = copyUrlsBtn.textContent;
-    copyUrlsBtn.textContent = `✓ Copied ${currentCleanUrls.length} URLs to Clipboard!`;
-    setTimeout(() => {
-      copyUrlsBtn.textContent = orig;
-    }, 2200);
+    copyUrlsBtn.textContent = `Copied ${currentCleanUrls.length} URLs`;
+    setTimeout(() => { copyUrlsBtn.textContent = orig; }, 2000);
   });
 });

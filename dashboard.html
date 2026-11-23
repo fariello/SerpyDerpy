@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>SerpyDerpy v2 — Campaign Dashboard</title>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --panel: #151f32;
+      --panel-alt: #0f172a;
+      --border: #28354d;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-dark: #0284c7;
+      --success: #22c55e;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 20px 24px 48px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 14px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .brand { display: flex; align-items: center; gap: 10px; }
+    .brand h1 { margin: 0; font-size: 22px; color: var(--accent); }
+    .badge {
+      background: #0369a1;
+      color: #e0f2fe;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+    }
+    .tabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+    .tab-btn {
+      background: var(--panel);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .tab-btn.active {
+      background: var(--accent);
+      color: #082f49;
+      border-color: var(--accent);
+    }
+    .panel { display: none; }
+    .panel.active { display: block; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .card h2 {
+      margin: 0 0 12px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--accent);
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+    @media (max-width: 960px) {
+      .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    }
+    label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 12px; }
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%;
+      background: var(--panel-alt);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 12px;
+      font-family: inherit;
+    }
+    textarea {
+      min-height: 130px;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      resize: vertical;
+    }
+    .btn {
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .btn-primary { background: var(--accent); color: #082f49; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-dark); color: #fff; }
+    .btn-secondary { background: #334155; color: var(--text); }
+    .btn-warning { background: #92400e; color: #fef3c7; }
+    .btn-danger { background: #7f1d1d; color: #fecaca; }
+    .btn-success { background: #166534; color: #dcfce7; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .hint { font-size: 11.5px; color: var(--muted); margin-top: 4px; }
+    .alert {
+      padding: 12px 14px;
+      border-radius: 6px;
+      margin-bottom: 14px;
+      border: 1px solid var(--border);
+      background: var(--panel-alt);
+    }
+    .alert.warning { border-color: var(--warning); background: rgba(245, 158, 11, 0.1); }
+    .alert.danger { border-color: var(--danger); background: rgba(239, 68, 68, 0.12); }
+    .alert.success { border-color: var(--success); background: rgba(34, 197, 94, 0.1); }
+    .lane-card {
+      background: var(--panel-alt);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+    }
+    .lane-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .pill {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: #334155;
+      color: #e2e8f0;
+      text-transform: uppercase;
+    }
+    .pill.running { background: #0369a1; color: #e0f2fe; }
+    .pill.warning { background: #92400e; color: #fef3c7; }
+    .pill.success { background: #166534; color: #dcfce7; }
+    .pill.danger { background: #991b1b; color: #fee2e2; }
+    .table-wrap { overflow-x: auto; max-height: 460px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { padding: 7px 9px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+    th { background: var(--panel-alt); position: sticky; top: 0; color: var(--muted); font-size: 11px; text-transform: uppercase; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11.5px; }
+    .check-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; cursor: pointer; font-weight: 500; }
+    .check-row input { width: auto; margin: 0; }
+    .log-box {
+      max-height: 220px;
+      overflow-y: auto;
+      background: var(--panel-alt);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 11.5px;
+    }
+    .log-line { margin-bottom: 3px; word-break: break-word; }
+    .log-line.warn { color: #fbbf24; }
+    .log-line.error { color: #f87171; }
+    .metric-box {
+      background: var(--panel-alt);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px;
+    }
+    .metric-label { font-size: 11px; color: var(--muted); text-transform: uppercase; }
+    .metric-val { font-size: 20px; font-weight: 700; color: var(--text); margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <h1>SerpyDerpy Campaign Dashboard</h1>
+      <span class="badge" id="versionBadge">v2.0.0</span>
+    </div>
+    <div class="btn-row">
+      <select id="campaignSelect" style="width: 240px;"></select>
+      <button id="refreshBtn" class="btn btn-secondary">Refresh</button>
+    </div>
+  </div>
+
+  <!-- Needs Human Click Banner (always visible across tabs when challenges exist) -->
+  <div id="challengeBanner" class="alert warning" style="display: none;">
+    <strong>Needs Human Click (CAPTCHA / Cloudflare Challenge)</strong>
+    <div id="challengeList" style="margin-top: 8px;"></div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="setup">1. Setup &amp; Loader</button>
+    <button class="tab-btn" data-tab="live">2. Live Operations</button>
+    <button class="tab-btn" data-tab="history">3. History &amp; Ledger</button>
+    <button class="tab-btn" data-tab="exports">4. Checkpoints &amp; Exports</button>
+  </div>
+
+  <!-- TAB 1: SETUP & LOADER -->
+  <section id="tab-setup" class="panel active">
+    <div class="alert">
+      <strong>Pre-Flight Browser Checklist (REQ-OPS-03):</strong>
+      1. Turn <em>OFF</em> "Ask where to save each file before downloading" in Chrome/Edge download settings so files save unattended.
+      2. Use a dedicated Chrome/Edge profile if you do not want logged-in session cookies sent in <code>credentials: "include"</code> page fetches.
+    </div>
+
+    <div class="card">
+      <h2>Campaign Identity &amp; Quick Bundle Import</h2>
+      <div class="grid-3">
+        <div>
+          <label for="campaignNameInput">Campaign Name</label>
+          <input type="text" id="campaignNameInput" value="Domain Research Campaign" />
+        </div>
+        <div>
+          <label for="outputRootInput">Output Root (under Downloads/, max 60 chars)</label>
+          <input type="text" id="outputRootInput" value="SerpyDerpy/campaign" />
+        </div>
+        <div>
+          <label for="campaignBundleFile">Import Unified campaign.json (optional)</label>
+          <input type="file" id="campaignBundleFile" accept=".json" />
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <h2>Target Roster (TXT / CSV / JSON)</h2>
+        <div style="margin-bottom: 8px;">
+          <label for="rosterFileInput">Load Roster File (.txt, .csv, .json)</label>
+          <input type="file" id="rosterFileInput" accept=".txt,.csv,.json" />
+        </div>
+        <label for="rosterTextarea">Or Paste Domains (one per line; # comments ignored)</label>
+        <textarea id="rosterTextarea" placeholder="princeton.edu&#10;mit.edu&#10;toyota.com"></textarea>
+        <div class="hint" id="rosterStatusHint">0 targets loaded.</div>
+      </div>
+
+      <div class="card">
+        <h2>Search Specifications (TXT / CSV / JSON)</h2>
+        <div style="margin-bottom: 8px;">
+          <label for="searchesFileInput">Load Search Spec File (.txt, .csv, .json)</label>
+          <input type="file" id="searchesFileInput" accept=".txt,.csv,.json" />
+        </div>
+        <label for="searchesTextarea">Or Paste Templates (one per line; optional: template[TAB]pages[TAB]slug; prefix web: for non-site scope)</label>
+        <textarea id="searchesTextarea" placeholder="&quot;artificial intelligence&quot; policy&#9;3&#9;ai-policy&#10;web:&quot;{name}&quot; &quot;AI club&quot;&#9;2"></textarea>
+        <div class="hint" id="searchesStatusHint">0 searches loaded.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Campaign Settings, Pacing, Deduplication, &amp; Safety</h2>
+      <div class="grid-4">
+        <div>
+          <label for="defaultPagesInput">Default Pages (1-20)</label>
+          <input type="number" id="defaultPagesInput" min="1" max="20" value="3" />
+        </div>
+        <div>
+          <label for="rollingWindowInput">Rolling Target Window (K)</label>
+          <input type="number" id="rollingWindowInput" min="1" max="500" value="4" />
+        </div>
+        <div>
+          <label for="fetchConcurrencyInput">Fetch Workers (1-7)</label>
+          <select id="fetchConcurrencyInput">
+            <option value="1">1 worker</option>
+            <option value="2">2 workers</option>
+            <option value="3" selected>3 workers</option>
+            <option value="5">5 workers</option>
+            <option value="7">7 workers</option>
+          </select>
+        </div>
+        <div>
+          <label for="maxFileSizeMbInput">Max File Size (MB)</label>
+          <input type="number" id="maxFileSizeMbInput" min="1" max="2048" value="250" />
+        </div>
+      </div>
+
+      <div class="grid-4" style="margin-top: 10px;">
+        <div>
+          <label for="bpHighInput">Backpressure Pause (>= pending)</label>
+          <input type="number" id="bpHighInput" min="0" max="10000" value="50" />
+        </div>
+        <div>
+          <label for="bpLowInput">Backpressure Resume (&lt;= pending)</label>
+          <input type="number" id="bpLowInput" min="0" max="10000" value="20" />
+        </div>
+        <div>
+          <label for="dedupPolicySelect">Duplicate URL Policy</label>
+          <select id="dedupPolicySelect">
+            <option value="skip-and-stub" selected>skip-and-stub (JSON pointer)</option>
+            <option value="skip-silent">skip-silent</option>
+            <option value="refetch-per-search">refetch-per-search</option>
+          </select>
+        </div>
+        <div>
+          <label for="freshnessDaysInput">Freshness Window (days, 0=unlimited)</label>
+          <input type="number" id="freshnessDaysInput" min="0" max="3650" value="30" />
+        </div>
+      </div>
+
+      <div class="grid-3" style="margin-top: 10px;">
+        <div>
+          <label>SERP Inter-Page Delay (min / max / mean sec)</label>
+          <div class="grid-3">
+            <input type="number" id="serpMin" step="0.5" value="3" />
+            <input type="number" id="serpMax" step="0.5" value="30" />
+            <input type="number" id="serpMean" step="0.5" value="7.5" />
+          </div>
+        </div>
+        <div>
+          <label>Inter-Query Delay (min / max / mean sec)</label>
+          <div class="grid-3">
+            <input type="number" id="iqMin" step="0.5" value="3" />
+            <input type="number" id="iqMax" step="0.5" value="30" />
+            <input type="number" id="iqMean" step="0.5" value="10" />
+          </div>
+        </div>
+        <div>
+          <label>Same-Host Fetch Delay (min / max / mean sec)</label>
+          <div class="grid-3">
+            <input type="number" id="shMin" step="0.5" value="2" />
+            <input type="number" id="shMax" step="0.5" value="30" />
+            <input type="number" id="shMean" step="0.5" value="5" />
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-4" style="margin-top: 12px;">
+        <div>
+          <label for="challengeScopeSelect">On CAPTCHA Pause Scope</label>
+          <select id="challengeScopeSelect">
+            <option value="pause-affected-only" selected>pause-affected-only</option>
+            <option value="pause-all">pause-all</option>
+          </select>
+        </div>
+        <div>
+          <label for="restartBehaviorSelect">On Browser Restart</label>
+          <select id="restartBehaviorSelect">
+            <option value="prompt" selected>prompt (paused_interrupted)</option>
+            <option value="auto-resume">auto-resume (15s delay)</option>
+          </select>
+        </div>
+        <div>
+          <label for="missingPlaceholderSelect">Missing Placeholder Handling</label>
+          <select id="missingPlaceholderSelect">
+            <option value="error" selected>Warn / block launch</option>
+            <option value="fallback-domain-stem">Fallback {name} to domain stem</option>
+            <option value="skip">Skip affected pairs</option>
+          </select>
+        </div>
+        <div>
+          <label>Active Engines</label>
+          <div class="btn-row" style="margin-top: 4px;">
+            <label class="check-row"><input type="checkbox" id="engGoogle" checked /> Google</label>
+            <label class="check-row"><input type="checkbox" id="engBing" checked /> Bing</label>
+            <label class="check-row"><input type="checkbox" id="engDdg" checked /> DDG</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-3" style="margin-top: 10px;">
+        <div>
+          <label class="check-row"><input type="checkbox" id="globalDedupCheckbox" checked /> Share URL history globally across campaigns</label>
+          <label class="check-row"><input type="checkbox" id="managedWindowCheckbox" checked /> Use dedicated managed browser window</label>
+          <label class="check-row"><input type="checkbox" id="keepAwakeCheckbox" checked /> Keep system awake while running</label>
+        </div>
+        <div>
+          <label class="check-row"><input type="checkbox" id="eraseHistoryCheckbox" checked /> Auto-erase Campaign download history entries</label>
+          <label class="check-row"><input type="checkbox" id="saveSerpHtmlCheckbox" checked /> Save raw SERP HTML snapshots</label>
+          <label class="check-row"><input type="checkbox" id="noPersonalizationCheckbox" checked /> Google no-personalization (&amp;pws=0)</label>
+        </div>
+        <div>
+          <label class="check-row"><input type="checkbox" id="ddgHtmlModeCheckbox" /> Use DuckDuckGo HTML endpoint fallback</label>
+          <label class="check-row"><input type="checkbox" id="plainLinksCheckbox" /> Strip link URLs in Markdown (plain text links)</label>
+          <label class="check-row"><input type="checkbox" id="recordPublicIpCheckbox" /> Record public IP in metadata (opt-in, default OFF)</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Pre-Run Validation &amp; Scope Estimator</h2>
+      <div id="validationFeedback"></div>
+      <div class="grid-4" style="margin-bottom: 12px;">
+        <div class="metric-box"><div class="metric-label">Enabled Targets</div><div class="metric-val" id="estTargets">0</div></div>
+        <div class="metric-box"><div class="metric-label">Enabled Searches</div><div class="metric-val" id="estSearches">0</div></div>
+        <div class="metric-box"><div class="metric-label">Remaining Search Tasks</div><div class="metric-val" id="estTasks">0</div></div>
+        <div class="metric-box"><div class="metric-label">Est. Wall-Clock (excl. CAPTCHA)</div><div class="metric-val" id="estTime">0m</div></div>
+      </div>
+      <div class="btn-row">
+        <button id="validateBtn" class="btn btn-secondary">Validate &amp; Estimate</button>
+        <button id="saveCampaignBtn" class="btn btn-primary">Save Campaign</button>
+        <button id="saveAndStartBtn" class="btn btn-success">Save &amp; Start Campaign</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 2: LIVE OPERATIONS -->
+  <section id="tab-live" class="panel">
+    <div class="card">
+      <h2>Campaign Controls</h2>
+      <div class="btn-row" style="margin-bottom: 12px;">
+        <button id="startResumeBtn" class="btn btn-success">Start / Resume</button>
+        <button id="pauseBtn" class="btn btn-warning">Pause (Keep Tabs)</button>
+        <button id="stopBtn" class="btn btn-danger">Stop (Write Report &amp; Close Tabs)</button>
+        <span class="pill" id="liveCampaignStatus">IDLE</span>
+      </div>
+      <div class="grid-4">
+        <div class="metric-box"><div class="metric-label">Search Tasks Done / Total</div><div class="metric-val" id="liveSearchProgress">0 / 0</div></div>
+        <div class="metric-box"><div class="metric-label">URLs Fetched / Deduped</div><div class="metric-val" id="liveFetchProgress">0 / 0</div></div>
+        <div class="metric-box"><div class="metric-label">Pending Fetch Queue</div><div class="metric-val" id="livePendingFetch">0</div></div>
+        <div class="metric-box"><div class="metric-label">Backpressure</div><div class="metric-val" id="liveBackpressure">OFF</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Search Engine Lanes (Simultaneous, 1 Tab Each)</h2>
+      <div class="grid-3">
+        <div class="lane-card" id="lane-google">
+          <div class="lane-header"><strong>Google</strong><span class="pill" id="lane-status-google">IDLE</span></div>
+          <div class="hint" id="lane-detail-google">Idle</div>
+          <div class="btn-row" style="margin-top: 8px;">
+            <button class="btn btn-secondary lane-toggle-btn" data-engine="google">Pause / Resume Lane</button>
+          </div>
+        </div>
+        <div class="lane-card" id="lane-bing">
+          <div class="lane-header"><strong>Bing</strong><span class="pill" id="lane-status-bing">IDLE</span></div>
+          <div class="hint" id="lane-detail-bing">Idle</div>
+          <div class="btn-row" style="margin-top: 8px;">
+            <button class="btn btn-secondary lane-toggle-btn" data-engine="bing">Pause / Resume Lane</button>
+          </div>
+        </div>
+        <div class="lane-card" id="lane-duckduckgo">
+          <div class="lane-header"><strong>DuckDuckGo</strong><span class="pill" id="lane-status-duckduckgo">IDLE</span></div>
+          <div class="hint" id="lane-detail-duckduckgo">Idle</div>
+          <div class="btn-row" style="margin-top: 8px;">
+            <button class="btn btn-secondary lane-toggle-btn" data-engine="duckduckgo">Pause / Resume Lane</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Result Fetch Pool &amp; Recent Events</h2>
+      <div class="hint" id="activeHostsText" style="margin-bottom: 10px;">Active hosts: none</div>
+      <div class="log-box" id="eventsLogBox"></div>
+    </div>
+  </section>
+
+  <!-- TAB 3: HISTORY & LEDGER -->
+  <section id="tab-history" class="panel">
+    <div class="card">
+      <h2>History &amp; URL Ledger Inspector</h2>
+      <div class="btn-row" style="margin-bottom: 12px;">
+        <select id="historyKindSelect" style="width: 170px;">
+          <option value="searchTasks">Search Tasks</option>
+          <option value="fetchQueue">Fetch Queue</option>
+          <option value="urlLedger">URL Ledger</option>
+        </select>
+        <select id="historyStatusSelect" style="width: 170px;">
+          <option value="all">All Statuses</option>
+          <option value="pending">pending</option>
+          <option value="in_progress">in_progress</option>
+          <option value="completed">completed</option>
+          <option value="completed_dedup">completed_dedup</option>
+          <option value="fetched">fetched</option>
+          <option value="paused_challenge">paused_challenge</option>
+          <option value="failed_retryable">failed_retryable</option>
+          <option value="failed_permanent">failed_permanent</option>
+          <option value="skipped_too_large">skipped_too_large</option>
+          <option value="skipped_policy">skipped_policy</option>
+        </select>
+        <input type="text" id="historyFilterInput" placeholder="Filter by target, search, URL, error..." style="width: 260px;" />
+        <button id="loadHistoryBtn" class="btn btn-secondary">Filter</button>
+        <button id="retryFailedSearchesBtn" class="btn btn-warning">Retry Failed Searches</button>
+        <button id="retryFailedUrlsBtn" class="btn btn-warning">Retry Failed URLs</button>
+        <button id="retrySelectedBtn" class="btn btn-primary">Retry Checked Rows</button>
+      </div>
+      <div class="hint" id="historyCountHint" style="margin-bottom: 8px;">0 rows</div>
+      <div class="table-wrap">
+        <table id="historyTable">
+          <thead id="historyTableHead"></thead>
+          <tbody id="historyTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 4: CHECKPOINTS & EXPORTS -->
+  <section id="tab-exports" class="panel">
+    <div class="grid-2">
+      <div class="card">
+        <h2>Portable Checkpoints (JSONL)</h2>
+        <p class="hint">Export a verified full JSONL snapshot to <code>_state/</code>, or import a full snapshot plus any newer <code>checkpoint-delta-*.jsonl</code> files to recover after a browser profile reset or machine move.</p>
+        <div class="btn-row" style="margin-bottom: 12px;">
+          <button id="exportCheckpointBtn" class="btn btn-primary">Export Full Checkpoint JSONL</button>
+        </div>
+        <label for="importCheckpointFiles">Import Checkpoint File(s) (.jsonl — select full + deltas together)</label>
+        <input type="file" id="importCheckpointFiles" accept=".jsonl,.ndjson,.json" multiple />
+        <div class="btn-row" style="margin-top: 8px;">
+          <button id="importCheckpointBtn" class="btn btn-success">Verify &amp; Import Selected Checkpoints</button>
+        </div>
+        <div class="hint" id="checkpointResultText" style="margin-top: 8px;"></div>
+      </div>
+
+      <div class="card">
+        <h2>Downstream Pipeline Exports &amp; Reports</h2>
+        <p class="hint">Stream <code>_exports/campaign-summary.json</code>, <code>_exports/search-tasks.jsonl</code>, and <code>_exports/url-ledger.jsonl</code>, or write a summary report and campaign bundle.</p>
+        <div class="btn-row" style="margin-bottom: 10px;">
+          <button id="exportBundleBtn" class="btn btn-primary">Export _exports/ Bundle</button>
+          <button id="exportReportBtn" class="btn btn-secondary">Write Report &amp; Flush Logs</button>
+          <button id="exportCampaignJsonBtn" class="btn btn-secondary">Download campaign.json</button>
+        </div>
+        <div class="hint" id="exportResultText"></div>
+      </div>
+    </div>
+  </section>
+
+  <script type="module" src="dashboard.js"></script>
+</body>
+</html>

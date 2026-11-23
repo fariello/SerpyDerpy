@@ -1,27 +1,33 @@
 {
   "manifest_version": 3,
   "name": "SerpyDerpy",
-  "version": "1.0.6",
-  "description": "Converts Google Search results into clean Markdown and rich metadata JSON with titles, URLs, and snippets. Includes multi-page crawling, bot-friendly delays, parallel decoy browsing, and URL export for TidyTexty.",
+  "version": "2.0.0",
+  "description": "Crash-resumable multi-engine domain search (Google, Bing, DuckDuckGo), polite multi-format page archiving, clean Markdown extraction, and structured metadata sidecars.",
   "permissions": [
     "activeTab",
     "tabs",
     "scripting",
+    "webNavigation",
     "downloads",
+    "downloads.ui",
     "storage",
+    "unlimitedStorage",
+    "alarms",
+    "notifications",
+    "power",
+    "offscreen",
     "clipboardWrite"
   ],
   "host_permissions": [
-    "https://www.google.com/*",
-    "https://*.google.com/*",
-    "https://api.ipify.org/*",
-    "https://icanhazip.com/*"
+    "<all_urls>"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
+  "options_page": "dashboard.html",
   "action": {
-    "default_title": "SerpyDerpy — SERP to Markdown & JSON",
+    "default_title": "SerpyDerpy v2 — Multi-Engine Search & Archiver",
     "default_popup": "popup.html",
     "default_icon": {
       "16": "icon16.png",

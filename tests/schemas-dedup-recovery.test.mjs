@@ -1,0 +1,209 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  classifyResource,
+  sniffMagicBytes,
+  buildSerpJson,
+  buildResultJson,
+  buildErrorJson,
+  buildSiteCaptureJson,
+  buildCampaignSummaryJson,
+  buildCampaignReportMarkdown,
+  buildCheckpointJsonl,
+  parseAndVerifyCheckpointJsonl,
+  formatTextAsMarkdown
+} from "../schemas.js";
+import {
+  evaluateLedgerDeduplication,
+  reconcileInterruptedCampaignState,
+  mergeUpdatedSearchTasks
+} from "../db.js";
+
+test("REQ-FETCH-03 & V-06: magic-byte sniffing and resource classification", () => {
+  const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]); // %PDF-1.7
+  assert.equal(sniffMagicBytes(pdfBytes).ext, "pdf");
+
+  const classifiedPdf = classifyResource(
+    "https://example.edu/download?id=999",
+    "application/octet-stream",
+    "",
+    pdfBytes
+  );
+  assert.deepEqual(classifiedPdf, { kind: "binary", ext: "pdf", mime: "application/pdf" });
+
+  const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  assert.equal(classifyResource("https://example.edu/img", "application/octet-stream", "", pngBytes).ext, "png");
+
+  const mdFormatted = formatTextAsMarkdown({
+    url: "https://example.edu/doc.md",
+    title: "Guide",
+    rawText: "---\nold: header\n---\n\n# Real Heading\n\nBody text.",
+    ext: "md",
+    mime: "text/markdown",
+    timestampUtc: "2026-11-22T12:00:00.000Z"
+  });
+  assert.ok(mdFormatted.startsWith("---\nURL: "));
+  assert.equal(mdFormatted.includes("old: header"), false);
+  assert.ok(mdFormatted.includes("# Real Heading"));
+});
+
+test("REQ-META-01..05 & REQ-OUT-02: v2 schemas, default IP off, and 200-sample report cap", () => {
+  const serp = buildSerpJson({
+    mode: "interactive",
+    campaign: null,
+    environment: { ipAddress: "1.2.3.4", ipAddressRecorded: false }
+  });
+  assert.equal(serp.schemaVersion, 2);
+  assert.equal(serp.mode, "interactive");
+  assert.equal(serp.environment.ipAddress, null);
+  assert.equal(serp.environment.ipAddressRecorded, false);
+
+  const res = buildResultJson({
+    mode: "campaign",
+    resource: { kind: "binary", fileExtension: "pdf", sha256: "abc" },
+    files: { source: "001-report.pdf", markdown: null, metadata: "001-report.json" },
+    environment: { ipAddressRecorded: false }
+  });
+  assert.equal(res.extraction, null);
+  assert.equal(res.files.source, "001-report.pdf");
+  assert.equal(res.files.markdown, null);
+
+  const err = buildErrorJson({ status: "failed_permanent", errorClass: "blocked_by_user", retryable: false });
+  assert.equal(err.schemaVersion, 2);
+  assert.equal(err.retryable, false);
+
+  const site = buildSiteCaptureJson({ campaignId: "c1", target: { domain: "mit.edu" }, truncated: true, sitemapsDiscoveredCount: 60 });
+  assert.equal(site.cap, 50);
+  assert.equal(site.truncated, true);
+
+  const summary = buildCampaignSummaryJson({
+    campaign: { campaignId: "c1", name: "Test", outputRoot: "SerpyDerpy/test", status: "completed", createdAtUtc: "2026-11-22T00:00:00Z", updatedAtUtc: "2026-11-22T01:00:00Z" },
+    counts: { targets: 1, searchTasksByStatus: { completed: 3 }, fetchTasksByStatus: { completed: 10 }, offDomainResults: 1, challengesEncountered: 0 }
+  });
+  assert.equal(summary.schemaVersion, 2);
+
+  // Campaign report caps sample failed URLs at 200
+  const manyFailed = Array.from({ length: 350 }, (_, i) => ({
+    url: `https://example.edu/fail-${i}`,
+    status: "failed_permanent",
+    errorClass: "http_4xx",
+    reason: "404"
+  }));
+  const report = buildCampaignReportMarkdown({
+    campaign: { campaignId: "c1", name: "Big", status: "stopped", outputRoot: "SerpyDerpy/big", createdAtUtc: "2026-11-22T00:00:00Z" },
+    completedAtUtc: "2026-11-22T01:00:00Z",
+    sampleFailedUrls: manyFailed,
+    totalFailedUrls: manyFailed.length
+  });
+  assert.ok(report.includes("Sample Failed / Blocked URLs (200 of 350)"));
+  assert.equal(report.includes("fail-200"), false);
+});
+
+test("REQ-STATE-07 & V-07: JSONL checkpoint round-trip, SHA-256 tamper rejection, and path traversal guard", async () => {
+  const jsonl = await buildCheckpointJsonl({
+    checkpointKind: "delta",
+    seq: 4,
+    campaignId: "cmp-1",
+    records: [
+      { type: "campaign", data: { campaignId: "cmp-1", outputRoot: "SerpyDerpy/demo" } },
+      { type: "urlLedger", data: { ledgerKey: "cmp-1::h1", canonicalArtifactRelPath: "SerpyDerpy/demo/mit/google/ai/001-doc.json" } }
+    ]
+  });
+
+  const ok = await parseAndVerifyCheckpointJsonl(jsonl);
+  assert.equal(ok.ok, true);
+  assert.equal(ok.records.length, 2);
+  assert.equal(ok.header.seq, 4);
+
+  // Tamper body -> SHA-256 must reject
+  const tampered = jsonl.replace("001-doc.json", "001-hack.json");
+  const badHash = await parseAndVerifyCheckpointJsonl(tampered);
+  assert.equal(badHash.ok, false);
+  assert.ok(badHash.error.includes("SHA-256"));
+
+  // Path traversal inside otherwise-valid SHA-256 checkpoint must still be rejected (REQ-UI-04)
+  const evilJsonl = await buildCheckpointJsonl({
+    checkpointKind: "full",
+    seq: 1,
+    campaignId: "cmp-evil",
+    records: [
+      { type: "campaign", data: { campaignId: "cmp-evil", outputRoot: "../../etc" } }
+    ]
+  });
+  const badPath = await parseAndVerifyCheckpointJsonl(evilJsonl);
+  assert.equal(badPath.ok, false);
+  assert.ok(badPath.error.includes("Unsafe path"));
+});
+
+test("REQ-STATE-03, REQ-STATE-04, REQ-STATE-06 & V-07: dedup scope, freshness expiry, waiting_dedup, incremental merge, and crash reconciliation", () => {
+  const nowMs = Date.parse("2026-11-22T12:00:00.000Z");
+  const recentIso = "2026-11-20T12:00:00.000Z"; // 2 days old
+  const staleIso = "2026-09-01T12:00:00.000Z";  // > 30 days old
+
+  // Global dedup matches across campaigns; disabling global dedup isolates campaign
+  const rows = [
+    { campaignId: "cmp-old", status: "fetched", fetchedAtUtc: recentIso, canonicalArtifactRelPath: "SerpyDerpy/old/001.json" }
+  ];
+  assert.equal(
+    evaluateLedgerDeduplication({ ledgerRows: rows, campaignId: "cmp-new", globalDedup: true, freshnessDays: 30, nowMs }).action,
+    "skip-and-stub"
+  );
+  assert.equal(
+    evaluateLedgerDeduplication({ ledgerRows: rows, campaignId: "cmp-new", globalDedup: false, freshnessDays: 30, nowMs }).action,
+    "fetch"
+  );
+
+  // Freshness expiry forces re-download
+  const staleRows = [{ campaignId: "cmp-new", status: "fetched", fetchedAtUtc: staleIso }];
+  assert.equal(
+    evaluateLedgerDeduplication({ ledgerRows: staleRows, campaignId: "cmp-new", globalDedup: true, freshnessDays: 30, nowMs }).action,
+    "fetch"
+  );
+
+  // In-flight ownership returns non-blocking waiting_dedup
+  const inFlightRows = [{ campaignId: "cmp-new", status: "in_progress", fetchedAtUtc: null }];
+  assert.equal(
+    evaluateLedgerDeduplication({ ledgerRows: inFlightRows, campaignId: "cmp-new", globalDedup: true, freshnessDays: 30, nowMs }).action,
+    "waiting_dedup"
+  );
+
+  // Incremental task merge reopens completed tasks when pagesRequested increases
+  const merged = mergeUpdatedSearchTasks({
+    existingTasks: [
+      { taskKey: "k1", status: "completed", pagesCompleted: 3, pagesRequested: 3, paginationEndReason: "reached_requested_pages", resolvedQueryHash: "h1" },
+      { taskKey: "k2", status: "completed", pagesCompleted: 1, pagesRequested: 3, paginationEndReason: "zero_results", resolvedQueryHash: "h2" }
+    ],
+    newTasks: [
+      { taskKey: "k1", pagesRequested: 7, resolvedQueryHash: "h1" },
+      { taskKey: "k2", pagesRequested: 7, resolvedQueryHash: "h2" },
+      { taskKey: "k3", pagesRequested: 3, resolvedQueryHash: "h3" }
+    ]
+  });
+  assert.equal(merged.reopenedForMorePages, 1);
+  assert.equal(merged.unchangedCompleted, 1);
+  assert.equal(merged.newlyAdded, 1);
+
+  // Startup crash reconciliation resets orphaned in_progress items & transitions running -> paused_interrupted under prompt
+  const rec = reconcileInterruptedCampaignState({
+    campaign: { campaignId: "c1", status: "running" },
+    searchTasks: [
+      { taskKey: "t1", status: "in_progress", pagesCompleted: 2 },
+      { taskKey: "t2", status: "completed", pagesCompleted: 3 }
+    ],
+    fetchQueue: [{ fetchKey: "f1", status: "in_progress" }, { fetchKey: "f2", status: "waiting_dedup" }],
+    urlLedger: [{ ledgerKey: "l1", status: "in_progress" }],
+    engineStates: [{ engineKey: "c1::google", status: "working", activeTabId: 42 }],
+    hostStates: [{ host: "mit.edu", activeFetchKey: "f1", pausedByChallenge: true }],
+    isBrowserStartup: true,
+    onBrowserRestart: "prompt"
+  });
+  assert.equal(rec.action, "prompt");
+  assert.equal(rec.campaign.status, "paused_interrupted");
+  assert.equal(rec.searchTasks.length, 1);
+  assert.equal(rec.searchTasks[0].status, "pending");
+  assert.equal(rec.searchTasks[0].pagesCompleted, 2);
+  assert.equal(rec.fetchQueue.length, 2);
+  assert.equal(rec.hostStates[0].activeFetchKey, null);
+  assert.equal(rec.hostStates[0].pausedByChallenge, false);
+});
