@@ -98,7 +98,8 @@ async function handleFetchStreamAndBlob({
   maxBytes = 250 * 1024 * 1024,
   timeoutMs = 60000,
   decodeText = false,
-  gunzipXml = false
+  gunzipXml = false,
+  blobMimeType = null
 }) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -205,7 +206,9 @@ async function handleFetchStreamAndBlob({
     const sniffed = sniffMagicBytes(merged.subarray(0, 16));
     const classified = classifyResource(res.url || url, contentType, dispositionFilename, merged.subarray(0, 16));
 
-    const blob = new Blob([merged], { type: classified.mime || contentType || "application/octet-stream" });
+    const blob = new Blob([merged], {
+      type: blobMimeType || classified.mime || contentType || "application/octet-stream"
+    });
     const blobUrl = URL.createObjectURL(blob);
     activeBlobUrls.set(blobUrl, Date.now());
 

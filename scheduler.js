@@ -98,6 +98,48 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * Claim the next eligible fetchQueue item, reserving its host and fetchKey synchronously
+ * before awaiting hostState so concurrent workers cannot pick the same item or host.
+ */
+export async function claimNextFetchCandidate({
+  candidates,
+  activeHostsInMem,
+  activeFetchKeysInMem,
+  getHostState,
+  now = Date.now()
+}) {
+  for (const cand of candidates) {
+    const host = cand.host || "unknown";
+    if (activeHostsInMem.has(host) || activeFetchKeysInMem.has(cand.fetchKey)) continue;
+
+    activeHostsInMem.add(host);
+    activeFetchKeysInMem.add(cand.fetchKey);
+
+    try {
+      const hs = (await getHostState(host)) || {
+        host,
+        cooldownUntilUtc: null,
+        consecutiveBackoffs: 0,
+        pausedByChallenge: false,
+        activeFetchKey: null,
+        lastRequestUtc: null
+      };
+      if (hs.pausedByChallenge || hs.activeFetchKey || (hs.cooldownUntilUtc && Date.parse(hs.cooldownUntilUtc) > now)) {
+        activeHostsInMem.delete(host);
+        activeFetchKeysInMem.delete(cand.fetchKey);
+        continue;
+      }
+      return { chosen: cand, hostState: hs, host };
+    } catch (err) {
+      activeHostsInMem.delete(host);
+      activeFetchKeysInMem.delete(cand.fetchKey);
+      throw err;
+    }
+  }
+  return null;
+}
+
 export class CampaignScheduler {
   constructor() {
     this.activeCampaignId = null;
@@ -1404,6 +1446,7 @@ export class CampaignScheduler {
     const campaign = await getRecord(STORES.campaigns, campaignId);
     const maxWorkers = Math.max(1, Math.min(7, Number(campaign?.config?.fetchConcurrency ?? 3)));
     const activeHostsInMem = new Set();
+    const activeFetchKeysInMem = new Set();
 
     const worker = async (workerId) => {
       while (this.isRunning && !this.stopMode) {
@@ -1451,37 +1494,20 @@ export class CampaignScheduler {
           continue;
         }
 
-        // Pick a candidate whose host is NOT currently locked, NOT paused by challenge, and past host cooldown
-        const now = Date.now();
-        let chosen = null;
-        let chosenHostState = null;
+        // Claim a candidate whose host is NOT currently locked, NOT paused by challenge, and past host cooldown
+        const claim = await claimNextFetchCandidate({
+          candidates: allCandidates,
+          activeHostsInMem,
+          activeFetchKeysInMem,
+          getHostState: (h) => getRecord(STORES.hostState, h)
+        });
 
-        for (const cand of allCandidates) {
-          const host = cand.host || "unknown";
-          if (activeHostsInMem.has(host)) continue;
-          const hs = (await getRecord(STORES.hostState, host)) || {
-            host,
-            cooldownUntilUtc: null,
-            consecutiveBackoffs: 0,
-            pausedByChallenge: false,
-            activeFetchKey: null,
-            lastRequestUtc: null
-          };
-          if (hs.pausedByChallenge || hs.activeFetchKey) continue;
-          if (hs.cooldownUntilUtc && Date.parse(hs.cooldownUntilUtc) > now) continue;
-          chosen = cand;
-          chosenHostState = hs;
-          break;
-        }
-
-        if (!chosen) {
+        if (!claim) {
           await this.interruptibleSleep(1200);
           continue;
         }
 
-        // Lock host immediately
-        const host = chosen.host || "unknown";
-        activeHostsInMem.add(host);
+        const { chosen, hostState: chosenHostState, host } = claim;
         this.liveFetchers.activeHosts = Array.from(activeHostsInMem);
         this.broadcastLiveUpdate();
 
@@ -1489,6 +1515,7 @@ export class CampaignScheduler {
           await this.processFetchTask(freshCampaign, chosen, chosenHostState);
         } finally {
           activeHostsInMem.delete(host);
+          activeFetchKeysInMem.delete(chosen.fetchKey);
           this.liveFetchers.activeHosts = Array.from(activeHostsInMem);
           this.broadcastLiveUpdate();
         }

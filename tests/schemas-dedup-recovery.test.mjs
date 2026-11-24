@@ -19,6 +19,8 @@ import {
   reconcileInterruptedCampaignState,
   mergeUpdatedSearchTasks
 } from "../db.js";
+import { buildSiteSitemapFilename } from "../fetcher.js";
+import { claimNextFetchCandidate } from "../scheduler.js";
 
 test("REQ-FETCH-03 & V-06: magic-byte sniffing and resource classification", () => {
   const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]); // %PDF-1.7
@@ -206,4 +208,60 @@ test("REQ-STATE-03, REQ-STATE-04, REQ-STATE-06 & V-07: dedup scope, freshness ex
   assert.equal(rec.fetchQueue.length, 2);
   assert.equal(rec.hostStates[0].activeFetchKey, null);
   assert.equal(rec.hostStates[0].pausedByChallenge, false);
+});
+
+test("REQ-OPS-09: _site sitemap filenames always end with .txt to avoid Edge XML prompts", () => {
+  assert.equal(buildSiteSitemapFilename(1, "https://princeton.edu/sitemap.xml"), "sitemap-01-sitemap.xml.txt");
+  assert.equal(buildSiteSitemapFilename(2, "https://umass.edu/sitemap.xml.gz"), "sitemap-02-sitemap.xml.gz.txt");
+  assert.equal(buildSiteSitemapFilename(3, "https://uri.edu/sitemap.txt"), "sitemap-03-sitemap.txt");
+  assert.equal(buildSiteSitemapFilename(4, "https://example.edu/sitemap"), "sitemap-04-sitemap.xml.txt");
+});
+
+test("REQ-FETCH-02: claimNextFetchCandidate locks host and fetchKey atomically across concurrent workers", async () => {
+  const candidates = [
+    { fetchKey: "t1::1", host: "www.princeton.edu" },
+    { fetchKey: "t1::2", host: "www.princeton.edu" },
+    { fetchKey: "t2::1", host: "www.umass.edu" },
+    { fetchKey: "t3::1", host: "www.uri.edu" }
+  ];
+  const activeHostsInMem = new Set();
+  const activeFetchKeysInMem = new Set();
+
+  // Simulated async IndexedDB lookup with delayed yield
+  const getHostState = async (host) => {
+    await new Promise((r) => setTimeout(r, 15));
+    if (host === "www.umass.edu") {
+      return { host, cooldownUntilUtc: new Date(Date.now() + 60000).toISOString(), pausedByChallenge: false, activeFetchKey: null };
+    }
+    return null;
+  };
+
+  const results = await Promise.all([
+    claimNextFetchCandidate({ candidates, activeHostsInMem, activeFetchKeysInMem, getHostState }),
+    claimNextFetchCandidate({ candidates, activeHostsInMem, activeFetchKeysInMem, getHostState }),
+    claimNextFetchCandidate({ candidates, activeHostsInMem, activeFetchKeysInMem, getHostState })
+  ]);
+
+  const claimed = results.filter(Boolean);
+  assert.equal(claimed.length, 2);
+  assert.deepEqual(claimed.map((c) => c.chosen.fetchKey).sort(), ["t1::1", "t3::1"]);
+  assert.deepEqual(Array.from(activeHostsInMem).sort(), ["www.princeton.edu", "www.uri.edu"]);
+  assert.deepEqual(Array.from(activeFetchKeysInMem).sort(), ["t1::1", "t3::1"]);
+
+  // Same-host contention: 3 concurrent workers on one host must yield only 1 claim
+  const sameHost = [
+    { fetchKey: "s::1", host: "same.edu" },
+    { fetchKey: "s::2", host: "same.edu" }
+  ];
+  const sHosts = new Set();
+  const sKeys = new Set();
+  const sameHostClaims = (
+    await Promise.all([
+      claimNextFetchCandidate({ candidates: sameHost, activeHostsInMem: sHosts, activeFetchKeysInMem: sKeys, getHostState }),
+      claimNextFetchCandidate({ candidates: sameHost, activeHostsInMem: sHosts, activeFetchKeysInMem: sKeys, getHostState }),
+      claimNextFetchCandidate({ candidates: sameHost, activeHostsInMem: sHosts, activeFetchKeysInMem: sKeys, getHostState })
+    ])
+  ).filter(Boolean);
+  assert.equal(sameHostClaims.length, 1);
+  assert.equal(sameHostClaims[0].chosen.fetchKey, "s::1");
 });

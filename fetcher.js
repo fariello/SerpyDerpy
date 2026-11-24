@@ -1442,6 +1442,27 @@ async function saveDirectOffscreenResource({
 }
 
 /**
+ * Build a safe `_site/` sitemap filename ending in `.txt` so Edge/Windows does not prompt
+ * on XML/GZ downloads triggered without a direct user gesture (`ALLOW_ON_USER_GESTURE`).
+ */
+export function buildSiteSitemapFilename(index, sitemapUrl) {
+  const lower = String(sitemapUrl || "").toLowerCase();
+  const isGz = lower.endsWith(".gz");
+  const stem = sanitizeSegment(
+    String(sitemapUrl || "").split("/").pop() || "sitemap",
+    "sitemap",
+    32
+  );
+  const withGz = `${stem}${isGz && !lower.endsWith(".xml.gz") && !stem.endsWith(".gz") ? ".gz" : ""}`;
+  const rawName = `sitemap-${String(index).padStart(2, "0")}-${withGz}`;
+  const baseName =
+    rawName.endsWith(".xml") || rawName.endsWith(".gz") || rawName.endsWith(".txt")
+      ? rawName
+      : `${rawName}.xml`;
+  return baseName.endsWith(".txt") ? baseName : `${baseName}.txt`;
+}
+
+/**
  * End-of-Target robots.txt and sitemap capture per REQ-OPS-09.
  * Saves under Downloads/<outputRoot>/<Target>/_site/ (cap 50 files, rejects HTML WAF pages).
  */
@@ -1489,7 +1510,8 @@ export async function captureTargetSiteMetadata({
       url,
       maxBytes: SITE_CAPTURE_MAX_FILE_BYTES,
       decodeText: !url.toLowerCase().endsWith(".gz"),
-      gunzipXml: url.toLowerCase().endsWith(".gz")
+      gunzipXml: url.toLowerCase().endsWith(".gz"),
+      blobMimeType: suggestedName.endsWith(".txt") ? "text/plain;charset=utf-8" : null
     });
 
     if (!res || !res.ok) {
@@ -1572,13 +1594,7 @@ export async function captureTargetSiteMetadata({
       break;
     }
     smIndex++;
-    const isGz = smUrl.toLowerCase().endsWith(".gz");
-    const name = `sitemap-${String(smIndex).padStart(2, "0")}-${sanitizeSegment(
-      smUrl.split("/").pop() || "sitemap",
-      "sitemap",
-      32
-    )}${isGz && !smUrl.toLowerCase().endsWith(".xml.gz") ? ".gz" : ""}`;
-    const filename = name.endsWith(".xml") || name.endsWith(".gz") || name.endsWith(".txt") ? name : `${name}.xml`;
+    const filename = buildSiteSitemapFilename(smIndex, smUrl);
 
     const smRes = await fetchSiteFile(smUrl, "sitemap", filename);
     if (smRes.saved && smRes.text && /<sitemapindex\b/i.test(smRes.text)) {
@@ -1602,12 +1618,7 @@ export async function captureTargetSiteMetadata({
       break;
     }
     smIndex++;
-    const isGz = childUrl.toLowerCase().endsWith(".gz");
-    const stem = sanitizeSegment(childUrl.split("/").pop() || "child", "sitemap", 30);
-    const filename =
-      stem.endsWith(".xml") || stem.endsWith(".gz") || stem.endsWith(".txt")
-        ? `sitemap-${String(smIndex).padStart(2, "0")}-${stem}`
-        : `sitemap-${String(smIndex).padStart(2, "0")}-${stem}.${isGz ? "xml.gz" : "xml"}`;
+    const filename = buildSiteSitemapFilename(smIndex, childUrl);
     await fetchSiteFile(childUrl, "sitemap", filename);
   }
 
