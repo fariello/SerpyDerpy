@@ -21,7 +21,11 @@ import {
   mergeUpdatedSearchTasks
 } from "../db.js";
 import { buildSiteSitemapFilename } from "../fetcher.js";
-import { claimNextFetchCandidate, shouldEnqueueSerpResult } from "../scheduler.js";
+import {
+  claimNextFetchCandidate,
+  runSingleFlightTargetCapture,
+  shouldEnqueueSerpResult
+} from "../scheduler.js";
 
 test("REQ-FETCH-03 & V-06: magic-byte sniffing and resource classification", () => {
   const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]); // %PDF-1.7
@@ -321,4 +325,34 @@ test("SERP off-domain enqueue guard & uncapped end-of-run Skipped Files report",
   assert.ok(md.includes("60.00 MB"));
   assert.ok(md.indexOf("95.00 MB") < md.indexOf("60.00 MB"), "Oversized files should sort largest-first");
   assert.ok(md.includes("https://digitalcommons.uri.edu/2026.html"));
+});
+
+test("REQ-OPS-09: runSingleFlightTargetCapture runs _site capture at most once across concurrent callers", async () => {
+  const inFlightKeys = new Set();
+  const completedKeys = new Set();
+  let runCount = 0;
+
+  const trigger = (isAlreadyCaptured = false) =>
+    runSingleFlightTargetCapture({
+      inFlightKeys,
+      completedKeys,
+      key: "cmp-1::princeton-edu",
+      isAlreadyCaptured,
+      fn: async () => {
+        runCount++;
+        await new Promise((r) => setTimeout(r, 20));
+      }
+    });
+
+  // 3 engine lanes + fetch sweep trigger concurrently
+  const results = await Promise.all([trigger(), trigger(), trigger(), trigger()]);
+  assert.equal(runCount, 1);
+  assert.deepEqual(results, [true, false, false, false]);
+  assert.equal(inFlightKeys.size, 0);
+  assert.equal(completedKeys.has("cmp-1::princeton-edu"), true);
+
+  // Subsequent call after completion (or when DB already lists target) is a no-op
+  assert.equal(await trigger(false), false);
+  assert.equal(await trigger(true), false);
+  assert.equal(runCount, 1);
 });

@@ -153,6 +153,30 @@ export async function claimNextFetchCandidate({
   return null;
 }
 
+/**
+ * Execute an end-of-target site capture at most once per `(campaignId, targetSlug)`
+ * across concurrent engine lanes and final fetch-pool sweeps.
+ */
+export async function runSingleFlightTargetCapture({
+  inFlightKeys,
+  completedKeys,
+  key,
+  isAlreadyCaptured = false,
+  fn
+}) {
+  if (isAlreadyCaptured || completedKeys.has(key) || inFlightKeys.has(key)) {
+    return false;
+  }
+  inFlightKeys.add(key);
+  try {
+    await fn();
+    completedKeys.add(key);
+    return true;
+  } finally {
+    inFlightKeys.delete(key);
+  }
+}
+
 export class CampaignScheduler {
   constructor() {
     this.activeCampaignId = null;
@@ -165,6 +189,8 @@ export class CampaignScheduler {
     this.lanePromises = new Map();
     this.fetchPoolPromise = null;
     this.lanePausedByUser = new Set();
+    this.siteCaptureInFlight = new Set();
+    this.siteCaptureCompleted = new Set();
 
     // Open challenges awaiting human click: key -> { id, kind ("engine"|"fetch"), engine?, host?, url, provider, tabId, resolveDecision }
     this.activeChallenges = new Map();
@@ -597,25 +623,37 @@ export class CampaignScheduler {
   }
 
   async completeTargetSiteCapture(campaign, target) {
-    if ((campaign.siteCapturedTargets || []).includes(target.slug)) return;
-    await this.log("info", "site-capture", `All tasks finished for "${target.slug}"; capturing robots.txt & sitemaps.`);
-    try {
-      await captureTargetSiteMetadata({
-        campaignId: campaign.campaignId,
-        outputRoot: campaign.outputRoot,
-        target,
-        eraseFromHistory: campaign.config?.eraseDownloadHistory !== false
-      });
-    } catch (err) {
-      await this.log("warn", "site-capture", `Site capture warning for ${target.slug}: ${err.message}`);
-    }
-    const fresh = await getRecord(STORES.campaigns, campaign.campaignId);
-    if (fresh) {
-      fresh.siteCapturedTargets = Array.from(new Set([...(fresh.siteCapturedTargets || []), target.slug]));
-      fresh.updatedAtUtc = new Date().toISOString();
-      await putRecord(STORES.campaigns, fresh);
-      await this.flushDeltaCheckpoint(fresh);
-    }
+    const captureKey = `${campaign.campaignId}::${target.slug}`;
+    await runSingleFlightTargetCapture({
+      inFlightKeys: this.siteCaptureInFlight,
+      completedKeys: this.siteCaptureCompleted,
+      key: captureKey,
+      isAlreadyCaptured: (campaign.siteCapturedTargets || []).includes(target.slug),
+      fn: async () => {
+        const latest = await getRecord(STORES.campaigns, campaign.campaignId);
+        if ((latest?.siteCapturedTargets || []).includes(target.slug)) {
+          return;
+        }
+        await this.log("info", "site-capture", `All tasks finished for "${target.slug}"; capturing robots.txt & sitemaps.`);
+        try {
+          await captureTargetSiteMetadata({
+            campaignId: campaign.campaignId,
+            outputRoot: campaign.outputRoot,
+            target,
+            eraseFromHistory: campaign.config?.eraseDownloadHistory !== false
+          });
+        } catch (err) {
+          await this.log("warn", "site-capture", `Site capture warning for ${target.slug}: ${err.message}`);
+        }
+        const fresh = await getRecord(STORES.campaigns, campaign.campaignId);
+        if (fresh) {
+          fresh.siteCapturedTargets = Array.from(new Set([...(fresh.siteCapturedTargets || []), target.slug]));
+          fresh.updatedAtUtc = new Date().toISOString();
+          await putRecord(STORES.campaigns, fresh);
+          await this.flushDeltaCheckpoint(fresh);
+        }
+      }
+    });
   }
 
   /**
