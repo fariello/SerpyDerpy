@@ -956,7 +956,7 @@ export class CampaignScheduler {
         if (preChal.encountered) challengeMeta = preChal;
 
         // Extract SERP page
-        const extRes = await executeScriptWithTimeout({ target: { tabId }, func: adapter.extractFunc }, 20000);
+        const extRes = await executeScriptWithTimeout({ target: { tabId }, func: adapter.extractFunc }, 45000);
         let payload = extRes?.[0]?.result || null;
 
         if (payload && payload.isChallenge) {
@@ -975,7 +975,7 @@ export class CampaignScheduler {
             return;
           }
           challengeMeta = postChal;
-          const retryRes = await executeScriptWithTimeout({ target: { tabId }, func: adapter.extractFunc }, 20000);
+          const retryRes = await executeScriptWithTimeout({ target: { tabId }, func: adapter.extractFunc }, 45000);
           payload = retryRes?.[0]?.result || null;
         }
 

@@ -270,6 +270,9 @@ export function evaluateTargetChallenge({
     lowerTitle.includes("human verification");
 
   const corroborated = hasCorroboratingStatus || hasShortBody || hasChallengeTitle;
+  if (selectors.awsWafScript && (corroborated || httpStatus === 202 || httpStatus === 405)) {
+    return { isChallenge: true, provider: "aws-waf", standalone: false };
+  }
   if (!corroborated) {
     return { isChallenge: false, provider: null, standalone: false };
   }

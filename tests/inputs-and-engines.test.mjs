@@ -180,10 +180,33 @@ test("REQ-FETCH-04 & V-05: corroborated target-page challenge detection against 
     visibleText,
     selectors: {
       recaptcha: true,
+      awsWafScript: true,
+      awsWafCaptcha: false,
       cfChallengeRunning: false,
       cfChallengeForm: false,
       cfTurnstileIframe: false
     }
   });
   assert.equal(normalResult.isChallenge, false);
+
+  // AWS WAF script tag on a short/202/405 interstitial must trigger, while explicit widget container is standalone
+  const awsInterstitial = evaluateTargetChallenge({
+    url: "https://careers.umass.edu/jobs/example",
+    httpStatus: 202,
+    title: "",
+    visibleText: "Human Verification",
+    selectors: { awsWafScript: true, awsWafCaptcha: false }
+  });
+  assert.equal(awsInterstitial.isChallenge, true);
+  assert.equal(awsInterstitial.provider, "aws-waf");
+
+  const awsWidget = evaluateTargetChallenge({
+    url: "https://ziplines.careercatalyst.asu.edu/ai-automation",
+    httpStatus: 200,
+    title: "Verify",
+    visibleText,
+    selectors: { awsWafScript: true, awsWafCaptcha: true }
+  });
+  assert.equal(awsWidget.isChallenge, true);
+  assert.equal(awsWidget.provider, "aws-waf");
 });

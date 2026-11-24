@@ -386,9 +386,9 @@ export async function downloadChunkedTextVerified({
 }
 
 /**
- * Wrap chrome.scripting.executeScript with a strict 20s timeout (REQ-FETCH-03 step 5).
+ * Wrap chrome.scripting.executeScript with a strict 45s default timeout.
  */
-export function executeScriptWithTimeout(details, timeoutMs = 20000) {
+export function executeScriptWithTimeout(details, timeoutMs = 45000) {
   return new Promise((resolve, reject) => {
     let settled = false;
     const timer = setTimeout(() => {
@@ -516,7 +516,8 @@ function probeLoadedTabFunc() {
     cfTurnstileIframe: Boolean(document.querySelector('iframe[src*="challenges.cloudflare.com"]')),
     datadomeIframe: Boolean(document.querySelector('iframe[src*="captcha-delivery.com"]')),
     pxCaptcha: Boolean(document.querySelector("#px-captcha")),
-    awsWafCaptcha: Boolean(document.querySelector('#captcha-container[data-aws-waf], script[src*="awswaf"]')),
+    awsWafCaptcha: Boolean(document.querySelector('#captcha-container[data-aws-waf], aws-waf-captcha')),
+    awsWafScript: Boolean(document.querySelector('script[src*="awswaf"]')),
     sucuriOrImpervaInterstitial: Boolean(
       document.querySelector('iframe[src*="_Incapsula_Resource"], meta[name="ROBOTS"][content*="NOINDEX"] ~ #main-iframe')
     ),
@@ -843,7 +844,7 @@ export async function fetchAndArchiveUrl({
     // Probe loaded tab
     let probed = null;
     try {
-      const pRes = await executeScriptWithTimeout({ target: { tabId }, func: probeLoadedTabFunc }, 20000);
+      const pRes = await executeScriptWithTimeout({ target: { tabId }, func: probeLoadedTabFunc }, 45000);
       probed = pRes?.[0]?.result || null;
     } catch (_) {}
 
@@ -912,7 +913,7 @@ export async function fetchAndArchiveUrl({
         await new Promise((r) => setTimeout(r, 2500));
         currentTab = await chrome.tabs.get(tabId).catch(() => null);
         effectiveUrl = (currentTab && currentTab.url) || effectiveUrl;
-        const pRes2 = await executeScriptWithTimeout({ target: { tabId }, func: probeLoadedTabFunc }, 20000);
+        const pRes2 = await executeScriptWithTimeout({ target: { tabId }, func: probeLoadedTabFunc }, 45000);
         probed = pRes2?.[0]?.result || probed;
         httpStatus = probed?.navigation?.responseStatus ?? null;
       } else {
@@ -1003,8 +1004,8 @@ export async function fetchAndArchiveUrl({
       },
       10000
     );
-    await executeScriptWithTimeout({ target: { tabId }, files: ["Readability.js"] }, 20000);
-    const extRes = await executeScriptWithTimeout({ target: { tabId }, files: ["markdown_extractor.js"] }, 20000);
+    await executeScriptWithTimeout({ target: { tabId }, files: ["Readability.js"] }, 45000);
+    const extRes = await executeScriptWithTimeout({ target: { tabId }, files: ["markdown_extractor.js"] }, 45000);
     const payload = extRes?.[0]?.result || null;
 
     if (!payload || (!payload.markdownBody && !payload.rawHtml)) {
