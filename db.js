@@ -128,13 +128,16 @@ export async function putRecord(storeName, value) {
   return value;
 }
 
-export async function putMany(storeName, values) {
+export async function putMany(storeName, values, chunkSize = 2000) {
   if (!values || values.length === 0) return;
   const db = await openDb();
-  const tx = createTransaction(db, [storeName], "readwrite");
-  const store = tx.objectStore(storeName);
-  for (const v of values) store.put(v);
-  await txDone(tx);
+  for (let offset = 0; offset < values.length; offset += chunkSize) {
+    const slice = values.slice(offset, offset + chunkSize);
+    const tx = createTransaction(db, [storeName], "readwrite");
+    const store = tx.objectStore(storeName);
+    for (const v of slice) store.put(v);
+    await txDone(tx);
+  }
 }
 
 export async function getAllRecords(storeName) {

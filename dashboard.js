@@ -270,6 +270,55 @@ document.getElementById("searchesFileInput").addEventListener("change", async (e
   await runValidateAndEstimate();
 });
 
+function applyConfigToForm(cfg = {}) {
+  if (!cfg || typeof cfg !== "object") return;
+  const setVal = (id, v) => {
+    if (v !== undefined && v !== null) document.getElementById(id).value = String(v);
+  };
+  const setChk = (id, v) => {
+    if (v !== undefined && v !== null) document.getElementById(id).checked = Boolean(v);
+  };
+
+  setVal("rollingWindowInput", cfg.rollingTargetWindow);
+  setVal("fetchConcurrencyInput", cfg.fetchConcurrency);
+  setVal("maxFileSizeMbInput", cfg.maxFileSizeMb);
+  setVal("bpHighInput", cfg.backpressureHigh);
+  setVal("bpLowInput", cfg.backpressureLow);
+  setVal("dedupPolicySelect", cfg.dedupPolicy);
+  setVal("freshnessDaysInput", cfg.freshnessDays);
+  setVal("challengeScopeSelect", cfg.challengePauseScope);
+  setVal("restartBehaviorSelect", cfg.onBrowserRestart);
+
+  setChk("globalDedupCheckbox", cfg.globalDedup);
+  setChk("managedWindowCheckbox", cfg.useManagedWindow);
+  setChk("keepAwakeCheckbox", cfg.keepAwake);
+  setChk("eraseHistoryCheckbox", cfg.eraseDownloadHistory);
+  setChk("saveSerpHtmlCheckbox", cfg.saveSerpHtml);
+  setChk("noPersonalizationCheckbox", cfg.noPersonalization);
+  setChk("ddgHtmlModeCheckbox", cfg.ddgHtmlMode);
+  setChk("plainLinksCheckbox", cfg.plainLinks);
+  setChk("recordPublicIpCheckbox", cfg.recordPublicIp);
+
+  if (Array.isArray(cfg.engines) && cfg.engines.length > 0) {
+    const set = new Set(cfg.engines.map((e) => String(e).toLowerCase()));
+    setChk("engGoogle", set.has("google"));
+    setChk("engBing", set.has("bing"));
+    setChk("engDdg", set.has("duckduckgo"));
+  }
+
+  if (cfg.pacing) {
+    setVal("serpMin", cfg.pacing.serpPageDelay?.min);
+    setVal("serpMax", cfg.pacing.serpPageDelay?.max);
+    setVal("serpMean", cfg.pacing.serpPageDelay?.mean);
+    setVal("iqMin", cfg.pacing.interQueryDelay?.min);
+    setVal("iqMax", cfg.pacing.interQueryDelay?.max);
+    setVal("iqMean", cfg.pacing.interQueryDelay?.mean);
+    setVal("shMin", cfg.pacing.sameHostFetchDelay?.min);
+    setVal("shMax", cfg.pacing.sameHostFetchDelay?.max);
+    setVal("shMean", cfg.pacing.sameHostFetchDelay?.mean);
+  }
+}
+
 document.getElementById("campaignBundleFile").addEventListener("change", async (e) => {
   const file = e.target.files?.[0];
   if (!file) return;
@@ -282,6 +331,7 @@ document.getElementById("campaignBundleFile").addEventListener("change", async (
   document.getElementById("campaignNameInput").value = res.campaign.name;
   document.getElementById("outputRootInput").value = res.campaign.outputRoot;
   document.getElementById("defaultPagesInput").value = res.campaign.defaultPages;
+  applyConfigToForm(res.campaign.config);
   document.getElementById("rosterTextarea").value = "";
   document.getElementById("searchesTextarea").value = "";
   loadedTargets = res.campaign.targets;
@@ -299,6 +349,15 @@ async function saveCampaign(autoStart = false) {
   const check = await runValidateAndEstimate();
   if (!check.ok) return;
 
+  const saveBtn = document.getElementById("saveCampaignBtn");
+  const startBtn = document.getElementById("saveAndStartBtn");
+  const origSave = saveBtn.textContent;
+  const origStart = startBtn.textContent;
+  saveBtn.disabled = true;
+  startBtn.disabled = true;
+  saveBtn.textContent = "Saving campaign to IndexedDB...";
+  startBtn.textContent = "Saving...";
+
   const payload = {
     campaignId: currentCampaignId || undefined,
     name: document.getElementById("campaignNameInput").value.trim() || "Domain Research Campaign",
@@ -312,6 +371,10 @@ async function saveCampaign(autoStart = false) {
   };
 
   chrome.runtime.sendMessage({ type: "CAMPAIGN_SAVE", payload }, (res) => {
+    saveBtn.disabled = false;
+    startBtn.disabled = false;
+    saveBtn.textContent = origSave;
+    startBtn.textContent = origStart;
     if (!res?.ok) {
       renderValidation([res?.error || "Failed to save campaign."], []);
       return;
