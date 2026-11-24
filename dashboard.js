@@ -28,6 +28,7 @@ let loadedTargets = [];
 let loadedSearches = [];
 let loadedRosterVersion = null;
 let loadedQueryListVersion = null;
+let loadedImportedConfig = {};
 let currentCampaignId = null;
 let currentCampaigns = [];
 
@@ -82,7 +83,10 @@ function getSelectedEngines() {
 
 function buildConfigFromForm() {
   const engines = getSelectedEngines();
+  const base = loadedImportedConfig && typeof loadedImportedConfig === "object" ? loadedImportedConfig : {};
+  const basePacing = base.pacing && typeof base.pacing === "object" ? base.pacing : {};
   return {
+    ...base,
     rollingTargetWindow: parseInt(document.getElementById("rollingWindowInput").value, 10) || 4,
     fetchConcurrency: parseInt(document.getElementById("fetchConcurrencyInput").value, 10) || 3,
     maxFileSizeMb: parseInt(document.getElementById("maxFileSizeMbInput").value, 10) || 250,
@@ -104,6 +108,7 @@ function buildConfigFromForm() {
     engines,
     pacing: {
       ...DEFAULT_PACING,
+      ...basePacing,
       serpPageDelay: {
         min: parseFloat(document.getElementById("serpMin").value),
         max: parseFloat(document.getElementById("serpMax").value),
@@ -331,7 +336,8 @@ document.getElementById("campaignBundleFile").addEventListener("change", async (
   document.getElementById("campaignNameInput").value = res.campaign.name;
   document.getElementById("outputRootInput").value = res.campaign.outputRoot;
   document.getElementById("defaultPagesInput").value = res.campaign.defaultPages;
-  applyConfigToForm(res.campaign.config);
+  loadedImportedConfig = res.campaign.config && typeof res.campaign.config === "object" ? { ...res.campaign.config } : {};
+  applyConfigToForm(loadedImportedConfig);
   document.getElementById("rosterTextarea").value = "";
   document.getElementById("searchesTextarea").value = "";
   loadedTargets = res.campaign.targets;

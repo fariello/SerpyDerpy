@@ -446,6 +446,10 @@ export function canonicalizeUrl(rawUrl) {
     if (kl.startsWith("utm_") || TRACKING_QUERY_PARAMS.has(kl)) {
       continue;
     }
+    // Strip empty bare numeric cache-buster params (e.g. ?1785855171= on Drupal PDFs)
+    if (/^\d{6,}$/.test(k) && v === "") {
+      continue;
+    }
     pairs.push([k, v]);
   }
   pairs.sort((a, b) => {
@@ -462,8 +466,12 @@ export function canonicalizeUrl(rawUrl) {
   }
   const searchStr = sortedParams.toString();
 
-  // Root path normalized to "/"
-  let pathname = parsed.pathname || "/";
+  // Root path normalized to "/" and decode RFC 3986 unreserved percent-encodings (e.g. %7E -> ~)
+  let pathname = (parsed.pathname || "/").replace(/%([0-9a-fA-F]{2})/g, (full, hex) => {
+    const code = parseInt(hex, 16);
+    const ch = String.fromCharCode(code);
+    return /^[A-Za-z0-9._~-]$/.test(ch) ? ch : full.toUpperCase();
+  });
   if (pathname === "") pathname = "/";
 
   const hostPort = port ? `${hostname}:${port}` : hostname;

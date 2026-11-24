@@ -63,6 +63,23 @@ export function decodeBingBase64UrlParam(uParam) {
 }
 
 /**
+ * Detect known paid-ad tracking query signatures that Bing injects into cloaked <li class="b_algo"> cards.
+ */
+export function isBingCloakedAdUrl(rawUrl) {
+  if (!rawUrl || typeof rawUrl !== "string") return false;
+  try {
+    const parsed = new URL(rawUrl);
+    const sp = parsed.searchParams;
+    if (sp.has("hsa_net") && String(sp.get("hsa_net")).toLowerCase() === "adwords") return true;
+    if (sp.has("hstk_network") || sp.has("hstk_campaign")) return true;
+    if (sp.get("_bm") === "b" && sp.get("_bn") === "o" && sp.has("_bg")) return true;
+    return false;
+  } catch (_) {
+    return false;
+  }
+}
+
+/**
  * Unwrap Bing click-tracking redirect URL (`bing.com/ck/a?...&u=a1...`) with optional <cite> fallback.
  */
 export function unwrapResultUrl(rawHref, citeFallback = "", baseOrigin = "https://www.bing.com") {
@@ -238,14 +255,27 @@ export function bingDomExtractorFunc() {
     );
   }
 
-  // Organic results (excluding ad blocks)
+  // Organic results (excluding ad blocks and anti-adblocker cloaked ad cards inside li.b_algo)
   const results = [];
   const seenUrls = new Set();
   const algoItems = Array.from(document.querySelectorAll("#b_results li.b_algo"));
 
+  function isCloakedAdUrl(rawUrl) {
+    try {
+      const parsed = new URL(rawUrl);
+      const sp = parsed.searchParams;
+      if (sp.has("hsa_net") && String(sp.get("hsa_net")).toLowerCase() === "adwords") return true;
+      if (sp.has("hstk_network") || sp.has("hstk_campaign")) return true;
+      if (sp.get("_bm") === "b" && sp.get("_bn") === "o" && sp.has("_bg")) return true;
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   for (const li of algoItems) {
     if (li.closest('.b_ad, .b_adTop, .b_adBottom, [data-isad="true"]')) continue;
-    if (li.querySelector('.b_adSlug, [data-isad="true"], a[href*="/aclick?"]')) continue;
+    if (li.querySelector('.b_adSlug, [data-isad="true"], a[href*="/aclick?"], [class^="ad_"], [class*=" ad_"]')) continue;
 
     const anchor = li.querySelector("h2 a[href]");
     if (!anchor) continue;
@@ -256,7 +286,7 @@ export function bingDomExtractorFunc() {
     const citeTxt = cleanText(citeEl ? citeEl.textContent : "");
     const rawHref = anchor.getAttribute("href") || anchor.href || "";
     const unwrapped = unwrapHref(rawHref, citeTxt);
-    if (!unwrapped.url || seenUrls.has(unwrapped.url)) continue;
+    if (!unwrapped.url || isCloakedAdUrl(unwrapped.url) || seenUrls.has(unwrapped.url)) continue;
     seenUrls.add(unwrapped.url);
 
     let domain = "";

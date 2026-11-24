@@ -655,6 +655,7 @@ export async function fetchAndArchiveUrl({
       httpStatus,
       reason,
       retryable,
+      observedContentLengthBytes,
       offDomain: offDom,
       finalUrl,
       finalCanonicalUrl: canonicalizeUrl(finalUrl) || canonicalUrl,

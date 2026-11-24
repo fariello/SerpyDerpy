@@ -997,8 +997,76 @@ export function buildCampaignReportMarkdown({
       lines.push(`- \`${item.errorClass || item.status}\` ${item.url} — ${item.reason || ""}`);
     }
   }
-  lines.push("", "For the complete URL ledger and task records, inspect `_exports/url-ledger.jsonl` and `_exports/search-tasks.jsonl`.", "");
+  lines.push("", "For the complete list of skipped files (oversized or policy-excluded), inspect `_reports/<timestamp>-serpyderpy-skipped-files.md`.");
+  lines.push("For the complete URL ledger and task records, inspect `_exports/url-ledger.jsonl` and `_exports/search-tasks.jsonl`.", "");
 
+  return lines.join("\n");
+}
+
+/**
+ * Build an uncapped end-of-run Skipped Files Report Markdown so maintainers can review
+ * oversized (`skipped_too_large`) and policy-excluded (`skipped_policy`) URLs and decide
+ * whether to retrieve any of them manually.
+ */
+export function buildSkippedFilesReportMarkdown({
+  campaign,
+  generatedAtUtc = new Date().toISOString(),
+  skippedItems = []
+}) {
+  const maxMb = campaign?.config?.maxFileSizeMb ?? 250;
+  const tooLarge = skippedItems
+    .filter((i) => i.status === "skipped_too_large" || i.errorClass === "too_large")
+    .sort((a, b) => (Number(b.observedContentLengthBytes) || 0) - (Number(a.observedContentLengthBytes) || 0));
+  const byPolicy = skippedItems.filter(
+    (i) => !(i.status === "skipped_too_large" || i.errorClass === "too_large")
+  );
+
+  const fmtSize = (bytes) => {
+    if (typeof bytes !== "number" || !Number.isFinite(bytes) || bytes < 0) return "unknown";
+    if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+    if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${bytes} B`;
+  };
+  const escCell = (v) => String(v ?? "").replace(/\|/g, "\\|").replace(/\r?\n+/g, " ").trim();
+
+  const lines = [
+    `# SerpyDerpy Skipped Files Report: ${campaign?.name || campaign?.campaignId || "Campaign"}`,
+    "",
+    `- **Campaign ID:** \`${campaign?.campaignId || ""}\``,
+    `- **Generated (UTC):** ${generatedAtUtc}`,
+    `- **Configured \`maxFileSizeMb\`:** ${maxMb} MB`,
+    `- **Total Skipped Files:** ${skippedItems.length} (\`${tooLarge.length}\` oversized, \`${byPolicy.length}\` policy/denylist)`,
+    "",
+    `## Oversized Files (\`skipped_too_large\`: ${tooLarge.length})`,
+    ""
+  ];
+
+  if (tooLarge.length === 0) {
+    lines.push("*None.*");
+  } else {
+    lines.push("| Target | Engine | Search | Size | Title | URL | Reason |");
+    lines.push("| --- | --- | --- | ---: | --- | --- | --- |");
+    for (const item of tooLarge) {
+      lines.push(
+        `| \`${escCell(item.targetSlug)}\` | ${escCell(item.engine)} | \`${escCell(item.searchSlug)}\` | ${fmtSize(item.observedContentLengthBytes)} | ${escCell(item.title)} | ${escCell(item.url)} | ${escCell(item.reason)} |`
+      );
+    }
+  }
+
+  lines.push("", `## Policy / Denylist Skipped Files (\`skipped_policy\`: ${byPolicy.length})`, "");
+  if (byPolicy.length === 0) {
+    lines.push("*None.*");
+  } else {
+    lines.push("| Target | Engine | Search | Class | Title | URL | Reason |");
+    lines.push("| --- | --- | --- | --- | --- | --- | --- |");
+    for (const item of byPolicy) {
+      lines.push(
+        `| \`${escCell(item.targetSlug)}\` | ${escCell(item.engine)} | \`${escCell(item.searchSlug)}\` | \`${escCell(item.errorClass || item.status)}\` | ${escCell(item.title)} | ${escCell(item.url)} | ${escCell(item.reason)} |`
+      );
+    }
+  }
+
+  lines.push("");
   return lines.join("\n");
 }
 

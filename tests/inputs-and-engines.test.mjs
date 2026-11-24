@@ -133,6 +133,24 @@ test("Section 6.3 & V-04: engine URL builders and click-redirect unwrapping (Goo
     ddgAdapter.unwrapResultUrl("https://duckduckgo.com/l/?uddg=https%3A%2F%2Fmit.edu%2Fpolicy.pdf").url,
     "https://mit.edu/policy.pdf"
   );
+
+  // Bing cloaked ad URL detection (pilot D1 regression test)
+  assert.equal(
+    bingAdapter.isBingCloakedAdUrl("https://www.mimecast.com/demo/?hstk_creative=&hstk_campaign=581613931&hstk_network=googleAds"),
+    true
+  );
+  assert.equal(
+    bingAdapter.isBingCloakedAdUrl("https://hyperproof.io/product/hyperproof-ai/?hsa_net=adwords&hsa_ver=3"),
+    true
+  );
+  assert.equal(
+    bingAdapter.isBingCloakedAdUrl("https://www.infotech.com/sem/lp3/ai?_bm=b&_bn=o&_bg=1307320629318475*"),
+    true
+  );
+  assert.equal(
+    bingAdapter.isBingCloakedAdUrl("https://its.uri.edu/ai-at-uri/"),
+    false
+  );
 });
 
 test("REQ-FETCH-04 & V-05: corroborated target-page challenge detection against HTML fixtures", () => {

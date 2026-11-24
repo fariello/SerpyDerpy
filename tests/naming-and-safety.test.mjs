@@ -114,6 +114,16 @@ test("REQ-STATE-02 & REQ-OPS-06: URL canonicalization, off-domain detection, SSR
   assert.equal(c1, "https://example.edu/path?a=1&b=2");
   assert.equal(c1, c2);
 
+  // Percent-encoded unreserved characters (%7E -> ~) and Drupal numeric cache-busters (?1785855171=)
+  assert.equal(
+    canonicalizeUrl("https://www.cs.princeton.edu/%7Earvindn/talks/MIT-STS-AI-snakeoil.pdf"),
+    canonicalizeUrl("https://www.cs.princeton.edu/~arvindn/talks/MIT-STS-AI-snakeoil.pdf")
+  );
+  assert.equal(
+    canonicalizeUrl("https://www.umass.edu/registrar/sites/default/files/2026-08/academicregs.pdf?1785855171="),
+    "https://www.umass.edu/registrar/sites/default/files/2026-08/academicregs.pdf"
+  );
+
   assert.equal(isOffDomain("https://ai.princeton.edu/policy", "princeton.edu"), false);
   assert.equal(isOffDomain("https://princeton.edu/", "princeton.edu"), false);
   assert.equal(isOffDomain("https://campusgroups.com/princeton", "princeton.edu"), true);

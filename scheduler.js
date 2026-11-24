@@ -27,6 +27,7 @@ import {
   buildErrorJson,
   buildDirectoryReadmeMarkdown,
   buildCampaignReportMarkdown,
+  buildSkippedFilesReportMarkdown,
   buildCampaignSummaryJson,
   buildCheckpointJsonl,
   formatSearchTaskExportRow,
@@ -96,6 +97,18 @@ const HOST_BACKOFF_MS = [30 * 1000, 120 * 1000, 300 * 1000];
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Decide whether a SERP result link should be enqueued for fetching.
+ * On target-site queries, off-domain links that appear directly on the SERP
+ * (e.g. cloaked ads or search-engine drift) are logged in SERP JSON but not fetched.
+ */
+export function shouldEnqueueSerpResult({ scope = "target-site", offDomain = false, fetchLinks = true }) {
+  if (fetchLinks === false) return false;
+  const normScope = String(scope || "target-site").toLowerCase();
+  if (normScope === "target-site" && Boolean(offDomain)) return false;
+  return true;
 }
 
 /**
@@ -837,7 +850,29 @@ export class CampaignScheduler {
       await putRecord(STORES.engineState, engState);
 
       await waitForTabComplete(tabId, 30000);
-      await sleep(1800);
+      if (engine === "duckduckgo" && !campaign.config?.ddgHtmlMode) {
+        // Wait for DuckDuckGo React SPA hydration to settle before extracting page 1
+        const ddgStart = Date.now();
+        let prevCount = -1;
+        let stableTicks = 0;
+        await sleep(1200);
+        while (Date.now() - ddgStart < 8000 && !this.stopMode) {
+          const probe = await executeScriptWithTimeout({ target: { tabId }, func: adapter.extractFunc }, 10000).catch(() => null);
+          const pr = probe?.[0]?.result;
+          if (!pr || pr.isChallenge || pr.zeroResults) break;
+          const cnt = Array.isArray(pr.results) ? pr.results.length : 0;
+          if (cnt === prevCount) {
+            stableTicks++;
+            if ((cnt >= 2 && stableTicks >= 2) || (cnt > 0 && stableTicks >= 3)) break;
+          } else {
+            prevCount = cnt;
+            stableTicks = 0;
+          }
+          await sleep(600);
+        }
+      } else {
+        await sleep(1800);
+      }
 
       // If resuming DuckDuckGo past page 1, click "More Results" up to startPage - 1 first
       if (engine === "duckduckgo" && startPage > 1 && !campaign.config?.ddgHtmlMode) {
@@ -925,6 +960,18 @@ export class CampaignScheduler {
           rawPageResults = slice;
         }
 
+        // Build deterministic 000-...-results.pageNN.[json|md|html] paths up front so
+        // fetchQueue items record their exact parent serpJsonFile basename (REQ-OUT-03, REQ-OUT-08)
+        const serpPaths = await buildSerpRelativePaths({
+          outputRoot: campaign.outputRoot,
+          targetSlug: task.targetSlug,
+          fullTargetSlug: targetObj.fullSlug || task.targetSlug,
+          engine,
+          searchSlug: task.searchSlug,
+          fullSearchSlug: task.fullSearchSlug || task.searchSlug,
+          pageNumber: pageNum
+        });
+
         // Canonicalize, flag off-domain & intra-search duplicates, assign consecutive overallRank
         const pageResults = [];
         const newFetchItems = [];
@@ -936,6 +983,11 @@ export class CampaignScheduler {
           if (!canon) continue;
           const isDupInSearch = seenCanonicalInSearch.has(canon);
           const offDom = isOffDomain(r.resolvedUrl, task.targetDomain);
+          const enqueueThisResult = shouldEnqueueSerpResult({
+            scope: task.scope || "target-site",
+            offDomain: offDom,
+            fetchLinks: task.fetchLinks !== false
+          });
 
           let assignedRank = null;
           if (!isDupInSearch) {
@@ -943,7 +995,7 @@ export class CampaignScheduler {
             assignedRank = nextOverallRank++;
             newUniqueCount++;
 
-            if (task.fetchLinks !== false) {
+            if (enqueueThisResult) {
               const canonHash = await sha256Hex(canon);
               let host = "";
               try {
@@ -963,6 +1015,7 @@ export class CampaignScheduler {
                 overallRank: assignedRank,
                 serpTitle: r.title || "",
                 serpSnippet: r.snippet || "",
+                serpJsonFile: serpPaths.basenames.json,
                 rawUrl: r.resolvedUrl,
                 canonicalUrl: canon,
                 canonicalUrlHash: canonHash,
@@ -986,6 +1039,7 @@ export class CampaignScheduler {
             canonicalUrl: canon,
             domain: r.domain,
             offDomain: offDom,
+            skippedOffDomainOnSerp: Boolean(offDom && (task.scope || "target-site").toLowerCase() === "target-site"),
             duplicateInSameSearch: isDupInSearch,
             urlDecodeFallback: Boolean(r.urlDecodeFallback),
             siteName: r.siteName,
@@ -1054,17 +1108,6 @@ export class CampaignScheduler {
           paginationEndReason = "no_next_button";
           shouldStopAfterPage = true;
         }
-
-        // Build deterministic 000-...-results.pageNN.[json|md|html] paths (REQ-OUT-03, REQ-OUT-08)
-        const serpPaths = await buildSerpRelativePaths({
-          outputRoot: campaign.outputRoot,
-          targetSlug: task.targetSlug,
-          fullTargetSlug: targetObj.fullSlug || task.targetSlug,
-          engine,
-          searchSlug: task.searchSlug,
-          fullSearchSlug: task.fullSearchSlug || task.searchSlug,
-          pageNumber: pageNum
-        });
 
         const pageEnd = new Date();
         const campaignMeta = {
@@ -1593,7 +1636,7 @@ export class CampaignScheduler {
       overallRank: fetchItem.overallRank,
       serpTitle: fetchItem.serpTitle,
       serpSnippet: fetchItem.serpSnippet,
-      serpJsonFile: null
+      serpJsonFile: fetchItem.serpJsonFile || null
     };
 
     if (dedup.action === "skip-and-stub" || dedup.action === "skip-silent") {
@@ -1813,6 +1856,7 @@ export class CampaignScheduler {
     fetchItem.status = outcome.dedupHandled ? "completed_dedup" : outcome.ok ? "completed" : finalStatus;
     fetchItem.errorClass = outcome.errorClass || null;
     fetchItem.lastError = outcome.reason || null;
+    fetchItem.observedContentLengthBytes = outcome.observedContentLengthBytes ?? null;
     fetchItem.artifactRelPath = outcome.artifactRelPath || null;
     fetchItem.updatedAtUtc = doneIso;
 
@@ -2023,6 +2067,7 @@ export class CampaignScheduler {
     const targetMap = new Map();
     const errorCountsByClass = {};
     const failedSamples = [];
+    const skippedItems = [];
     let offDomainTotal = 0;
 
     for (const t of searchTasks) {
@@ -2050,14 +2095,28 @@ export class CampaignScheduler {
         const cls = f.errorClass || f.status;
         errorCountsByClass[cls] = (errorCountsByClass[cls] || 0) + 1;
         failedSamples.push({ url: f.rawUrl, status: f.status, errorClass: cls, reason: f.lastError || "" });
+        if (f.status.startsWith("skipped")) {
+          skippedItems.push({
+            targetSlug: f.targetSlug,
+            engine: f.engine,
+            searchSlug: f.searchSlug,
+            status: f.status,
+            errorClass: cls,
+            title: f.serpTitle || "",
+            url: f.rawUrl,
+            observedContentLengthBytes: f.observedContentLengthBytes ?? null,
+            reason: f.lastError || ""
+          });
+        }
       }
       targetMap.set(f.targetSlug, tm);
     }
 
+    const completedAtUtc = new Date().toISOString();
     const reportMd = buildCampaignReportMarkdown({
       campaign,
       startedAtUtc: campaign.createdAtUtc,
-      completedAtUtc: new Date().toISOString(),
+      completedAtUtc,
       countsByEngine,
       countsByTarget: Array.from(targetMap.values()),
       errorCountsByClass,
@@ -2072,6 +2131,20 @@ export class CampaignScheduler {
     await downloadTextVerified({
       content: reportMd,
       filename,
+      mimeType: "text/markdown;charset=utf-8",
+      isCampaign: true,
+      eraseFromHistory: campaign.config?.eraseDownloadHistory !== false
+    });
+
+    const skippedMd = buildSkippedFilesReportMarkdown({
+      campaign,
+      generatedAtUtc: completedAtUtc,
+      skippedItems
+    });
+    const skippedFilename = `${campaign.outputRoot}/_reports/${prefix}-serpyderpy-skipped-files.md`;
+    await downloadTextVerified({
+      content: skippedMd,
+      filename: skippedFilename,
       mimeType: "text/markdown;charset=utf-8",
       isCampaign: true,
       eraseFromHistory: campaign.config?.eraseDownloadHistory !== false

@@ -10,6 +10,7 @@ import {
   buildSiteCaptureJson,
   buildCampaignSummaryJson,
   buildCampaignReportMarkdown,
+  buildSkippedFilesReportMarkdown,
   buildCheckpointJsonl,
   parseAndVerifyCheckpointJsonl,
   formatTextAsMarkdown
@@ -20,7 +21,7 @@ import {
   mergeUpdatedSearchTasks
 } from "../db.js";
 import { buildSiteSitemapFilename } from "../fetcher.js";
-import { claimNextFetchCandidate } from "../scheduler.js";
+import { claimNextFetchCandidate, shouldEnqueueSerpResult } from "../scheduler.js";
 
 test("REQ-FETCH-03 & V-06: magic-byte sniffing and resource classification", () => {
   const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37]); // %PDF-1.7
@@ -264,4 +265,60 @@ test("REQ-FETCH-02: claimNextFetchCandidate locks host and fetchKey atomically a
   ).filter(Boolean);
   assert.equal(sameHostClaims.length, 1);
   assert.equal(sameHostClaims[0].chosen.fetchKey, "s::1");
+});
+
+test("SERP off-domain enqueue guard & uncapped end-of-run Skipped Files report", () => {
+  // target-site scope drops off-domain SERP links before enqueueing; web scope allows them
+  assert.equal(shouldEnqueueSerpResult({ scope: "target-site", offDomain: true, fetchLinks: true }), false);
+  assert.equal(shouldEnqueueSerpResult({ scope: "target-site", offDomain: false, fetchLinks: true }), true);
+  assert.equal(shouldEnqueueSerpResult({ scope: "web", offDomain: true, fetchLinks: true }), true);
+  assert.equal(shouldEnqueueSerpResult({ scope: "web", offDomain: false, fetchLinks: false }), false);
+
+  // Uncapped skipped-files report groups and sorts skipped_too_large largest-first alongside skipped_policy
+  const md = buildSkippedFilesReportMarkdown({
+    campaign: { campaignId: "cmp-1", name: "Pilot", config: { maxFileSizeMb: 50 } },
+    generatedAtUtc: "2026-11-24T05:00:00.000Z",
+    skippedItems: [
+      {
+        targetSlug: "princeton-edu",
+        engine: "google",
+        searchSlug: "pol01-g",
+        status: "skipped_too_large",
+        errorClass: "too_large",
+        title: "Huge Deck A",
+        url: "https://example.edu/a.pdf",
+        observedContentLengthBytes: 60 * 1024 * 1024,
+        reason: "HEAD Content-Length exceeds limit"
+      },
+      {
+        targetSlug: "umass-edu",
+        engine: "bing",
+        searchSlug: "pol01-bd",
+        status: "skipped_too_large",
+        errorClass: "too_large",
+        title: "Huge Deck B",
+        url: "https://example.edu/b.pdf",
+        observedContentLengthBytes: 95 * 1024 * 1024,
+        reason: "HEAD Content-Length exceeds limit"
+      },
+      {
+        targetSlug: "uri-edu",
+        engine: "google",
+        searchSlug: "pol01-g",
+        status: "skipped_policy",
+        errorClass: "denylist",
+        title: "Repo Index",
+        url: "https://digitalcommons.uri.edu/2026.html",
+        observedContentLengthBytes: null,
+        reason: "Matched denylist pattern: digitalcommons."
+      }
+    ]
+  });
+
+  assert.ok(md.includes("Configured `maxFileSizeMb`:** 50 MB"));
+  assert.ok(md.includes("Total Skipped Files:** 3 (`2` oversized, `1` policy/denylist)"));
+  assert.ok(md.includes("95.00 MB"));
+  assert.ok(md.includes("60.00 MB"));
+  assert.ok(md.indexOf("95.00 MB") < md.indexOf("60.00 MB"), "Oversized files should sort largest-first");
+  assert.ok(md.includes("https://digitalcommons.uri.edu/2026.html"));
 });
